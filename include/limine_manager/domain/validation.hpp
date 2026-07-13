@@ -15,7 +15,7 @@ struct Diagnostic {
 };
 
 class ValidationReport {
-public:
+  public:
     void add(DiagnosticSeverity severity, std::string code, std::string message);
     void info(std::string code, std::string message);
     void warning(std::string code, std::string message);
@@ -24,9 +24,9 @@ public:
     [[nodiscard]] bool valid() const noexcept;
     [[nodiscard]] std::size_t error_count() const noexcept;
     [[nodiscard]] std::size_t warning_count() const noexcept;
-    [[nodiscard]] const std::vector<Diagnostic>& diagnostics() const noexcept;
+    [[nodiscard]] const std::vector<Diagnostic> &diagnostics() const noexcept;
 
-private:
+  private:
     std::vector<Diagnostic> diagnostics_;
 };
 

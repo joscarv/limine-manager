@@ -14,8 +14,8 @@ struct ApplyResult {
 };
 
 class ApplyService {
-public:
-    [[nodiscard]] ApplyResult apply(const ChangePlan& plan) const;
+  public:
+    [[nodiscard]] ApplyResult apply(const ChangePlan &plan) const;
 };
 
 } // namespace limine_manager::application

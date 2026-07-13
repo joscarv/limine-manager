@@ -14,10 +14,10 @@ struct BackupInfo {
 };
 
 class BackupService {
-public:
-    [[nodiscard]] std::vector<BackupInfo> list(const std::filesystem::path& target) const;
-    [[nodiscard]] std::optional<BackupInfo> latest(const std::filesystem::path& target) const;
-    std::size_t prune(const std::filesystem::path& target, std::size_t retain) const;
+  public:
+    [[nodiscard]] std::vector<BackupInfo> list(const std::filesystem::path &target) const;
+    [[nodiscard]] std::optional<BackupInfo> latest(const std::filesystem::path &target) const;
+    std::size_t prune(const std::filesystem::path &target, std::size_t retain) const;
 };
 
 } // namespace limine_manager::application

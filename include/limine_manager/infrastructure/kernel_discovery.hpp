@@ -24,13 +24,13 @@ struct KernelDiscoveryProfile {
 };
 
 class KernelDiscovery {
-public:
-    KernelDiscovery(const FileSystem& filesystem, KernelDiscoveryProfile profile = {})
+  public:
+    KernelDiscovery(const FileSystem &filesystem, KernelDiscoveryProfile profile = {})
         : filesystem_(filesystem), profile_(std::move(profile)) {}
     [[nodiscard]] std::vector<KernelInstallation> discover(std::string_view running_release) const;
 
-private:
-    const FileSystem& filesystem_;
+  private:
+    const FileSystem &filesystem_;
     KernelDiscoveryProfile profile_;
 };
 

@@ -20,10 +20,11 @@ std::vector<std::string> lines(std::string_view text) {
     }
     return result;
 }
-}
+} // namespace
 
-std::string UnifiedDiffRenderer::render(const application::ChangePlan& plan) const {
-    if (!plan.has_changes()) return {};
+std::string UnifiedDiffRenderer::render(const application::ChangePlan &plan) const {
+    if (!plan.has_changes())
+        return {};
     const auto before = lines(plan.installed);
     const auto after = lines(plan.generated);
     const std::size_t n = before.size(), m = after.size();
@@ -31,21 +32,27 @@ std::string UnifiedDiffRenderer::render(const application::ChangePlan& plan) con
     for (std::size_t i = n; i-- > 0;) {
         for (std::size_t j = m; j-- > 0;) {
             lcs[i][j] = before[i] == after[j] ? 1 + lcs[i + 1][j + 1]
-                                               : std::max(lcs[i + 1][j], lcs[i][j + 1]);
+                                              : std::max(lcs[i + 1][j], lcs[i][j + 1]);
         }
     }
     std::ostringstream out;
-    out << "--- " << (plan.kind == application::ChangeKind::create ? "/dev/null" : plan.target.string()) << '\n';
+    out << "--- "
+        << (plan.kind == application::ChangeKind::create ? "/dev/null" : plan.target.string())
+        << '\n';
     out << "+++ " << plan.target.string() << " (generated)\n";
     out << "@@ -1," << n << " +1," << m << " @@\n";
     std::size_t i = 0, j = 0;
     while (i < n || j < m) {
         if (i < n && j < m && before[i] == after[j]) {
-            out << ' ' << before[i] << '\n'; ++i; ++j;
+            out << ' ' << before[i] << '\n';
+            ++i;
+            ++j;
         } else if (j < m && (i == n || lcs[i][j + 1] >= lcs[i + 1][j])) {
-            out << '+' << after[j] << '\n'; ++j;
+            out << '+' << after[j] << '\n';
+            ++j;
         } else {
-            out << '-' << before[i] << '\n'; ++i;
+            out << '-' << before[i] << '\n';
+            ++i;
         }
     }
     return out.str();

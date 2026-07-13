@@ -15,16 +15,20 @@ struct ChangePlan {
     std::string installed;
     std::string generated;
 
-    [[nodiscard]] bool has_changes() const noexcept { return kind != ChangeKind::unchanged; }
+    [[nodiscard]] bool has_changes() const noexcept {
+        return kind != ChangeKind::unchanged;
+    }
 };
 
 class ChangePlanner {
-public:
-    explicit ChangePlanner(const infrastructure::FileSystem& filesystem) : filesystem_(filesystem) {}
-    [[nodiscard]] ChangePlan build(const std::filesystem::path& target, std::string generated) const;
+  public:
+    explicit ChangePlanner(const infrastructure::FileSystem &filesystem)
+        : filesystem_(filesystem) {}
+    [[nodiscard]] ChangePlan build(const std::filesystem::path &target,
+                                   std::string generated) const;
 
-private:
-    const infrastructure::FileSystem& filesystem_;
+  private:
+    const infrastructure::FileSystem &filesystem_;
 };
 
 [[nodiscard]] std::string to_string(ChangeKind kind);

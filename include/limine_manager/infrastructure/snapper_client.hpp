@@ -21,14 +21,14 @@ struct SnapshotInfo {
 };
 
 class SnapperClient {
-public:
-    explicit SnapperClient(const ProcessRunner& runner, std::string config = "root")
+  public:
+    explicit SnapperClient(const ProcessRunner &runner, std::string config = "root")
         : runner_(runner), config_(std::move(config)) {}
     [[nodiscard]] SnapperConfig get_config() const;
     [[nodiscard]] std::vector<SnapshotInfo> list() const;
 
-private:
-    const ProcessRunner& runner_;
+  private:
+    const ProcessRunner &runner_;
     std::string config_;
 };
 

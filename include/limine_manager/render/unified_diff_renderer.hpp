@@ -5,7 +5,7 @@
 
 namespace limine_manager::render {
 class UnifiedDiffRenderer {
-public:
-    [[nodiscard]] std::string render(const application::ChangePlan& plan) const;
+  public:
+    [[nodiscard]] std::string render(const application::ChangePlan &plan) const;
 };
 } // namespace limine_manager::render

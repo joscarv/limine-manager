@@ -22,7 +22,7 @@ MenuNode MenuNode::linux_entry(std::string title, std::string comment, LinuxBoot
     return node;
 }
 
-MenuNode& MenuNode::add_child(MenuNode child) {
+MenuNode &MenuNode::add_child(MenuNode child) {
     if (kind != NodeKind::directory) {
         throw std::logic_error("Only directory nodes can contain children");
     }

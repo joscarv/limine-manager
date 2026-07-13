@@ -6,8 +6,8 @@
 namespace limine_manager::render {
 
 class LimineRenderer {
-public:
-    std::string render(const domain::MenuDocument& document) const;
+  public:
+    std::string render(const domain::MenuDocument &document) const;
 };
 
 } // namespace limine_manager::render

@@ -37,14 +37,15 @@ struct SystemInfo {
 };
 
 class SystemDetector {
-public:
-    SystemDetector(const ProcessRunner& runner, const FileSystem& filesystem, SystemProfile profile = {})
+  public:
+    SystemDetector(const ProcessRunner &runner, const FileSystem &filesystem,
+                   SystemProfile profile = {})
         : runner_(runner), filesystem_(filesystem), profile_(std::move(profile)) {}
     [[nodiscard]] SystemInfo detect() const;
 
-private:
-    const ProcessRunner& runner_;
-    const FileSystem& filesystem_;
+  private:
+    const ProcessRunner &runner_;
+    const FileSystem &filesystem_;
     SystemProfile profile_;
 };
 

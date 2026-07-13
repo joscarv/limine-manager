@@ -8,10 +8,10 @@
 namespace limine_manager::domain {
 
 class KernelCommandLine {
-public:
+  public:
     static KernelCommandLine parse(std::string_view text);
 
-    [[nodiscard]] const std::vector<std::string>& arguments() const noexcept;
+    [[nodiscard]] const std::vector<std::string> &arguments() const noexcept;
     [[nodiscard]] bool empty() const noexcept;
     [[nodiscard]] std::optional<std::string> value(std::string_view key) const;
     [[nodiscard]] std::vector<std::string> values(std::string_view key) const;
@@ -22,7 +22,7 @@ public:
 
     [[nodiscard]] std::string render() const;
 
-private:
+  private:
     explicit KernelCommandLine(std::vector<std::string> arguments);
     std::vector<std::string> arguments_;
 };

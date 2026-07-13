@@ -30,10 +30,8 @@ struct AppConfig {
     std::vector<std::string> exclude_kernels;
     std::vector<std::string> kernel_order;
 
-    std::map<std::string, std::string> limine_options{
-        {"remember_last_entry", "yes"},
-        {"timeout", "5"}
-    };
+    std::map<std::string, std::string> limine_options{{"remember_last_entry", "yes"},
+                                                      {"timeout", "5"}};
 };
 
 struct LoadedConfig {

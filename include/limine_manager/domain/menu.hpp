@@ -24,7 +24,7 @@ struct MenuNode {
 
     static MenuNode directory(std::string title, bool expanded = false);
     static MenuNode linux_entry(std::string title, std::string comment, LinuxBootSpec spec);
-    MenuNode& add_child(MenuNode child);
+    MenuNode &add_child(MenuNode child);
 };
 
 struct MenuDocument {
