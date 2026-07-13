@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+version=${1:-$(sed -n 's/^project(limine-manager VERSION \([^ ]*\).*/\1/p' "$root/CMakeLists.txt")}
+out=${2:-"$PWD/limine-manager-$version.tar.gz"}
+prefix="limine-manager-$version"
+
+if [[ -z $version ]]; then
+    echo "Unable to determine project version" >&2
+    exit 1
+fi
+
+if git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git -C "$root" archive --format=tar --prefix="$prefix/" HEAD |
+        gzip -n -9 > "$out"
+else
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+    mkdir -p "$tmp/$prefix"
+    tar -C "$root" \
+        --exclude='./build*' --exclude='./install-root' --exclude='./pkgroot' --exclude='./stage' --exclude='./.git' --exclude='*.tar.gz' \
+        -cf - . | tar -C "$tmp/$prefix" -xf -
+    find "$tmp/$prefix" -exec touch -h -d '@0' {} +
+    tar -C "$tmp" --sort=name --owner=0 --group=0 --numeric-owner \
+        --mtime='@0' -cf - "$prefix" | gzip -n -9 > "$out"
+fi
+sha256sum "$out"

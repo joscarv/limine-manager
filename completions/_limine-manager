@@ -1,0 +1,29 @@
+#compdef limine-manager
+
+local -a commands
+commands=(
+  'check-config:validate configuration syntax and schema'
+  'validate:validate the detected system'
+  'preview:render the generated configuration'
+  'show-config:print the effective manager configuration'
+  'status:show validation, change, and backup status'
+  'plan:classify the pending change'
+  'diff:show a unified diff'
+  'dry-run:show the plan and diff without writing'
+  'apply:atomically install the generated configuration'
+  'list-backups:list managed backups'
+  'restore:restore a managed backup'
+  'prune-backups:apply backup retention policy'
+)
+_arguments -s \
+  '(-h --help)'{-h,--help}'[show help]' \
+  '(-V --version)'{-V,--version}'[show version]' \
+  '--config=[use alternative configuration]:configuration file:_files' \
+  '--backup=[select backup for restore]:backup file:_files' \
+  '--verbose[print additional diagnostics]' \
+  '--log-format=[diagnostic format]:format:(text json)' \
+  '1:command:->command' \
+  '*::argument:->args'
+case $state in
+  command) _describe 'command' commands ;;
+esac

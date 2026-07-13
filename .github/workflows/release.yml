@@ -1,0 +1,17 @@
+name: Release archive
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Build reproducible source archive
+        run: scripts/create-release-tarball "${GITHUB_REF_NAME#v}" "$PWD/limine-manager-${GITHUB_REF_NAME#v}.tar.gz"
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: limine-manager-*.tar.gz

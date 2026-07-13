@@ -1,0 +1,100 @@
+cmake_minimum_required(VERSION 3.20)
+project(limine-manager VERSION 1.0.1 LANGUAGES CXX)
+
+include(GNUInstallDirs)
+include(CTest)
+
+option(LIMINE_MANAGER_BUILD_TESTS "Build tests" ON)
+option(LIMINE_MANAGER_ENABLE_ASAN "Enable AddressSanitizer" OFF)
+option(LIMINE_MANAGER_ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
+option(LIMINE_MANAGER_ENABLE_COVERAGE "Enable GCC/Clang coverage instrumentation" OFF)
+option(LIMINE_MANAGER_ENABLE_CLANG_TIDY "Run clang-tidy during compilation" OFF)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+function(limine_manager_apply_quality TARGET_NAME)
+    target_compile_features(${TARGET_NAME} PUBLIC cxx_std_20)
+    set_target_properties(${TARGET_NAME} PROPERTIES CXX_EXTENSIONS OFF)
+    target_compile_options(${TARGET_NAME} PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Wconversion;-Wshadow>
+    )
+
+    set(_sanitizers "")
+    if(LIMINE_MANAGER_ENABLE_ASAN)
+        list(APPEND _sanitizers address)
+    endif()
+    if(LIMINE_MANAGER_ENABLE_UBSAN)
+        list(APPEND _sanitizers undefined)
+    endif()
+    if(_sanitizers AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        list(JOIN _sanitizers "," _sanitizer_list)
+        target_compile_options(${TARGET_NAME} PRIVATE -fno-omit-frame-pointer -fsanitize=${_sanitizer_list})
+        target_link_options(${TARGET_NAME} PRIVATE -fno-omit-frame-pointer -fsanitize=${_sanitizer_list})
+    endif()
+
+    if(LIMINE_MANAGER_ENABLE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(${TARGET_NAME} PRIVATE -O0 -g --coverage)
+        target_link_options(${TARGET_NAME} PRIVATE --coverage)
+    endif()
+endfunction()
+
+if(LIMINE_MANAGER_ENABLE_CLANG_TIDY)
+    find_program(CLANG_TIDY_EXECUTABLE NAMES clang-tidy REQUIRED)
+    set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_EXECUTABLE};--config-file=${CMAKE_SOURCE_DIR}/.clang-tidy")
+endif()
+
+add_library(limine_manager_core
+    src/application/preview_service.cpp
+    src/application/change_planner.cpp
+    src/application/apply_service.cpp
+    src/application/backup_service.cpp
+    src/application/validation_service.cpp
+    src/domain/kernel_cmdline.cpp
+    src/domain/menu.cpp
+    src/domain/validation.cpp
+    src/config/config_loader.cpp
+    src/infrastructure/filesystem.cpp
+    src/infrastructure/kernel_discovery.cpp
+    src/infrastructure/process.cpp
+    src/infrastructure/system_detector.cpp
+    src/infrastructure/snapper_client.cpp
+    src/render/limine_renderer.cpp
+    src/render/unified_diff_renderer.cpp
+)
+target_include_directories(limine_manager_core PUBLIC include)
+limine_manager_apply_quality(limine_manager_core)
+
+add_executable(limine-manager src/main.cpp)
+target_link_libraries(limine-manager PRIVATE limine_manager_core)
+target_compile_definitions(limine-manager PRIVATE LIMINE_MANAGER_VERSION="${PROJECT_VERSION}")
+limine_manager_apply_quality(limine-manager)
+
+install(TARGETS limine-manager RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES config/limine-manager.conf.example DESTINATION ${CMAKE_INSTALL_DATADIR}/limine-manager)
+install(PROGRAMS scripts/limine-manager-update DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(PROGRAMS scripts/create-release-tarball DESTINATION ${CMAKE_INSTALL_DATADIR}/limine-manager/tools)
+install(FILES packaging/90-limine-manager.hook.example DESTINATION ${CMAKE_INSTALL_DATADIR}/limine-manager/hooks)
+install(FILES docs/limine-manager.8 DESTINATION ${CMAKE_INSTALL_MANDIR}/man8)
+install(FILES completions/limine-manager.bash DESTINATION ${CMAKE_INSTALL_DATADIR}/bash-completion/completions RENAME limine-manager)
+install(FILES completions/_limine-manager DESTINATION ${CMAKE_INSTALL_DATADIR}/zsh/site-functions)
+
+if(LIMINE_MANAGER_BUILD_TESTS)
+    add_executable(limine_manager_tests tests/tests.cpp)
+    target_link_libraries(limine_manager_tests PRIVATE limine_manager_core)
+    target_compile_definitions(limine_manager_tests PRIVATE LIMINE_MANAGER_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+    limine_manager_apply_quality(limine_manager_tests)
+    target_compile_options(limine_manager_tests PRIVATE $<$<CXX_COMPILER_ID:GNU,Clang>:-UNDEBUG>)
+    add_test(NAME limine_manager_tests COMMAND limine_manager_tests)
+endif()
+
+add_custom_target(format
+    COMMAND ${CMAKE_SOURCE_DIR}/scripts/format
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Formatting C++ sources"
+)
+
+add_custom_target(format-check
+    COMMAND ${CMAKE_SOURCE_DIR}/scripts/format-check
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Checking C++ formatting"
+)

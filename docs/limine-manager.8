@@ -1,0 +1,96 @@
+.TH LIMINE-MANAGER 8 "July 2026" "limine-manager 1.0.1" "System Administration"
+.SH NAME
+limine-manager \- generate and safely maintain Limine menus for Arch Linux snapshots
+.SH SYNOPSIS
+.B limine-manager
+.RI [ options ]
+.I command
+.SH DESCRIPTION
+.B limine-manager
+inspects an Arch Linux system, discovers installed kernels and Snapper snapshots, validates the boot layout, renders a deterministic Limine configuration, and can install it atomically with backups and rollback.
+.SH OPTIONS
+.TP
+.BR -h ", " --help
+Show command help and exit.
+.TP
+.BR -V ", " --version
+Show the program version and exit.
+.TP
+.BR --config " " PATH
+Use an alternative configuration file.
+.TP
+.BR --backup " " PATH
+Select a managed backup for the restore command.
+.TP
+.BR --verbose
+Print additional diagnostic information.
+.TP
+.BR --log-format " " text|json
+Select human-readable or newline-delimited JSON diagnostics.
+.SH COMMANDS
+.TP
+.B check-config
+Validate configuration syntax and schema without inspecting the system.
+.TP
+.B validate
+Inspect the system and report all validation diagnostics.
+.TP
+.B preview
+Render the generated configuration to standard output without modifying files.
+.TP
+.B show-config
+Print the effective manager configuration.
+.TP
+.B status
+Report validation, pending configuration changes, and backup state.
+.TP
+.B plan
+Classify the required action as unchanged, create, or update.
+.TP
+.B diff
+Print a unified diff against the installed configuration.
+.TP
+.B dry-run
+Print the plan and diff without writing.
+.TP
+.B apply
+Install the generated configuration atomically. Root privileges are required only when changes exist.
+.TP
+.B list-backups
+List managed backups, newest first.
+.TP
+.B restore
+Restore the newest managed backup, or the backup selected with --backup.
+.TP
+.B prune-backups
+Apply the configured backup-retention policy.
+.SH EXIT STATUS
+.TP
+.B 0
+Success or no pending changes.
+.TP
+.B 1
+Detection, validation, or application failure.
+.TP
+.B 2
+Invalid command-line usage.
+.TP
+.B 3
+Valid pending changes for status, plan, diff, or dry-run.
+.SH FILES
+.TP
+.I /etc/limine-manager/limine-manager.conf
+Optional system configuration. Schema version 1 is stable for the 1.x release series.
+.TP
+.I /boot/limine.conf
+Default Limine target configuration.
+.TP
+.I /etc/kernel/cmdline
+Default canonical kernel command line.
+.SH SECURITY
+The apply and restore operations reject symbolic-link targets, acquire an exclusive lock, create synchronized backups, write a temporary file in the target directory, use atomic rename, synchronize the directory, verify installed bytes, and attempt rollback after a late failure.
+.SH SEE ALSO
+.BR limine (1),
+.BR snapper (8),
+.BR findmnt (8),
+.BR pacman (8)

@@ -1,0 +1,1 @@
+cryptdevice=UUID=test:cryptroot root=/dev/mapper/cryptroot rootflags=subvol=@ rw quiet

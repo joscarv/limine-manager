@@ -1,0 +1,26 @@
+pkgname=limine-manager
+pkgver=1.0.1
+pkgrel=1
+pkgdesc='Generate and safely maintain Limine menus for Arch Linux and Snapper snapshots'
+arch=('x86_64')
+url='https://github.com/OWNER/limine-manager'
+license=('MIT')
+depends=('gcc-libs' 'glibc' 'util-linux' 'snapper')
+makedepends=('cmake' 'ninja')
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=('REPLACE_WITH_RELEASE_SHA256')
+
+build() {
+  cmake -S "$pkgname-$pkgver" -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --build build
+}
+
+check() {
+  ctest --test-dir build --output-on-failure
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+}

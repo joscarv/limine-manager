@@ -1,0 +1,307 @@
+#include "limine_manager/application/apply_service.hpp"
+#include "limine_manager/application/backup_service.hpp"
+#include "limine_manager/application/change_planner.hpp"
+#include "limine_manager/application/preview_service.hpp"
+#include "limine_manager/application/validation_service.hpp"
+#include "limine_manager/config/config_loader.hpp"
+#include "limine_manager/infrastructure/filesystem.hpp"
+#include "limine_manager/infrastructure/process.hpp"
+#include "limine_manager/infrastructure/snapper_client.hpp"
+#include "limine_manager/infrastructure/system_detector.hpp"
+#include "limine_manager/render/limine_renderer.hpp"
+#include "limine_manager/render/unified_diff_renderer.hpp"
+
+#include <exception>
+#include <filesystem>
+#include <iostream>
+#include <sstream>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <unistd.h>
+
+namespace {
+struct CliOptions {
+    std::string command;
+    std::optional<std::filesystem::path> config_path;
+    std::optional<std::filesystem::path> backup_path;
+    std::string log_format{"text"};
+    bool verbose{false};
+    bool help{false};
+    bool version{false};
+};
+
+void usage(std::ostream& output) {
+    output << "Usage: limine-manager [OPTIONS] COMMAND\n\n"
+              "Generate and safely maintain a Limine menu for Arch Linux and Snapper.\n\n"
+              "Commands:\n"
+              "  check-config    Validate configuration syntax and schema\n"
+              "  validate        Validate the detected system\n"
+              "  preview         Render the generated limine.conf\n"
+              "  show-config     Print the effective manager configuration\n"
+              "  status          Show validation, change, and backup status\n"
+              "  plan            Classify the pending change\n"
+              "  diff            Show a unified diff\n"
+              "  dry-run         Show the plan and diff without writing\n"
+              "  apply           Atomically install the generated configuration\n"
+              "  list-backups    List managed backups\n"
+              "  restore         Restore a managed backup\n"
+              "  prune-backups   Apply the backup retention policy\n\n"
+              "Options:\n"
+              "  -h, --help              Show this help\n"
+              "  -V, --version           Show version information\n"
+              "      --config PATH       Use an alternative configuration\n"
+              "      --backup PATH       Select a backup for restore\n"
+              "      --verbose           Print additional diagnostics\n"
+              "      --log-format FORMAT text or json (diagnostics)\n";
+}
+
+std::string json_escape(std::string_view value) {
+    std::ostringstream output;
+    for (const char c : value) {
+        switch (c) {
+        case '\\': output << "\\\\"; break;
+        case '"': output << "\\\""; break;
+        case '\n': output << "\\n"; break;
+        case '\r': output << "\\r"; break;
+        case '\t': output << "\\t"; break;
+        default: output << c; break;
+        }
+    }
+    return output.str();
+}
+
+void log_message(const CliOptions& options, std::string_view level, std::string_view event,
+                 std::string_view message) {
+    if (options.log_format == "json") {
+        std::cerr << "{\"level\":\"" << json_escape(level)
+                  << "\",\"event\":\"" << json_escape(event)
+                  << "\",\"message\":\"" << json_escape(message) << "\"}\n";
+    } else {
+        std::cerr << '[' << level << "] " << message << '\n';
+    }
+}
+
+std::optional<CliOptions> parse_cli(int argc, char** argv) {
+    CliOptions options;
+    for (int i = 1; i < argc; ++i) {
+        const std::string_view arg(argv[i]);
+        auto parse_path = [&](std::optional<std::filesystem::path>& destination) -> bool {
+            if (++i >= argc || destination) return false;
+            destination = std::filesystem::path(argv[i]);
+            return true;
+        };
+        if (arg == "-h" || arg == "--help") {
+            options.help = true;
+        } else if (arg == "-V" || arg == "--version") {
+            options.version = true;
+        } else if (arg == "--verbose") {
+            options.verbose = true;
+        } else if (arg == "--log-format") {
+            if (++i >= argc) return std::nullopt;
+            options.log_format = argv[i];
+        } else if (arg.starts_with("--log-format=")) {
+            options.log_format = std::string(arg.substr(13));
+        } else if (arg == "--config") {
+            if (!parse_path(options.config_path)) return std::nullopt;
+        } else if (arg.starts_with("--config=")) {
+            if (options.config_path) return std::nullopt;
+            options.config_path = std::filesystem::path(std::string(arg.substr(9)));
+        } else if (arg == "--backup") {
+            if (!parse_path(options.backup_path)) return std::nullopt;
+        } else if (arg.starts_with("--backup=")) {
+            if (options.backup_path) return std::nullopt;
+            options.backup_path = std::filesystem::path(std::string(arg.substr(9)));
+        } else if (!arg.empty() && arg.front() == '-') {
+            return std::nullopt;
+        } else if (options.command.empty()) {
+            options.command = std::string(arg);
+        } else {
+            return std::nullopt;
+        }
+    }
+    if (options.log_format != "text" && options.log_format != "json") return std::nullopt;
+    if (options.help || options.version) return options;
+    const bool known = options.command == "check-config" || options.command == "preview" || options.command == "validate" ||
+                       options.command == "show-config" || options.command == "status" ||
+                       options.command == "plan" || options.command == "diff" ||
+                       options.command == "dry-run" || options.command == "apply" ||
+                       options.command == "list-backups" || options.command == "restore" ||
+                       options.command == "prune-backups";
+    if (!known) return std::nullopt;
+    if (options.backup_path && options.command != "restore") return std::nullopt;
+    return options;
+}
+
+void require_root(std::string_view operation) {
+    if (::geteuid() != 0) {
+        throw std::runtime_error(std::string(operation) + " requires root privileges; re-run with sudo");
+    }
+}
+
+void print_system_summary(const limine_manager::infrastructure::SystemInfo& system,
+                          std::size_t snapshot_count,
+                          const limine_manager::config::LoadedConfig& config,
+                          const CliOptions& options) {
+    if (!options.verbose) return;
+    if (options.log_format == "json") {
+        std::ostringstream message;
+        message << "config=" << (config.source ? config.source->string() : "built-in defaults")
+                << ", os=" << system.os_name << ", running=" << system.running_kernel_release
+                << ", kernels=" << system.kernels.size() << ", snapshots=" << snapshot_count;
+        log_message(options, "debug", "system.detected", message.str());
+        return;
+    }
+    std::cerr << "Config:    " << (config.source ? config.source->string() : "built-in defaults") << '\n'
+              << "Detected:  " << system.os_name << '\n'
+              << "Running:   " << system.running_kernel_release << '\n'
+              << "Kernels:   " << system.kernels.size() << '\n'
+              << "Root:      " << system.root_source << " (" << system.root_fstype << ", subvol="
+              << system.root_subvolume << ")\n"
+              << "Boot:      " << system.boot_source << " mounted at " << system.boot_target
+              << " (" << system.boot_fstype << ")\n"
+              << "Limine:    " << system.limine_config << '\n'
+              << "Snapshots: " << snapshot_count << "\n\n";
+}
+
+void print_plan(const limine_manager::application::ChangePlan& plan) {
+    std::cout << "Target: " << plan.target << '\n'
+              << "Action: " << limine_manager::application::to_string(plan.kind) << '\n'
+              << "Write operations: 0 (dry-run only)\n";
+}
+}
+
+int main(int argc, char** argv) {
+    const auto cli = parse_cli(argc, argv);
+    if (!cli) { usage(std::cerr); return 2; }
+    if (cli->help) { usage(std::cout); return 0; }
+    if (cli->version) { std::cout << "limine-manager " << LIMINE_MANAGER_VERSION << '\n'; return 0; }
+
+    try {
+        using namespace limine_manager;
+        infrastructure::RealFileSystem filesystem;
+        config::ConfigLoader loader(filesystem);
+        const auto loaded = loader.load(cli->config_path);
+        if (cli->command == "show-config") {
+            std::cout << loader.render(loaded);
+            return 0;
+        }
+        if (cli->command == "check-config") {
+            std::cout << "Configuration valid (schema " << loaded.value.schema_version << "): "
+                      << (loaded.source ? loaded.source->string() : "built-in defaults") << "\n";
+            return 0;
+        }
+
+        application::BackupService backup_service;
+        const auto target = loaded.value.system.limine_config;
+        if (cli->command == "list-backups") {
+            const auto backups = backup_service.list(target);
+            if (backups.empty()) { std::cout << "No backups found for " << target << ".\n"; return 0; }
+            for (std::size_t i = 0; i < backups.size(); ++i) {
+                std::cout << (i + 1) << ". " << backups[i].path << " (" << backups[i].size << " bytes)\n";
+            }
+            return 0;
+        }
+        if (cli->command == "prune-backups") {
+            require_root("prune-backups");
+            const auto removed = backup_service.prune(target, loaded.value.backup_retention);
+            std::cout << "Removed " << removed << " old backup(s); retained "
+                      << loaded.value.backup_retention << ".\n";
+            return 0;
+        }
+        if (cli->command == "restore") {
+            require_root("restore");
+            const auto backups = backup_service.list(target);
+            if (backups.empty()) throw std::runtime_error("no backups available for " + target.string());
+            std::filesystem::path selected = cli->backup_path.value_or(backups.front().path);
+            selected = std::filesystem::weakly_canonical(selected);
+            bool managed = false;
+            for (const auto& backup : backups) {
+                if (std::filesystem::weakly_canonical(backup.path) == selected) { managed = true; break; }
+            }
+            if (!managed) throw std::runtime_error("selected file is not a managed backup for " + target.string());
+            application::ChangePlanner planner(filesystem);
+            const auto plan = planner.build(target, filesystem.read_text(selected));
+            if (!plan.has_changes()) { std::cout << "No changes. Backup content is already active.\n"; return 0; }
+            application::ApplyService apply_service;
+            const auto result = apply_service.apply(plan);
+            const auto removed = backup_service.prune(target, loaded.value.backup_retention);
+            std::cout << "Restored: " << selected << "\nTarget:   " << result.target << '\n';
+            if (!result.backup.empty()) std::cout << "Previous active configuration saved as: " << result.backup << '\n';
+            if (removed) std::cout << "Pruned:   " << removed << " old backup(s)\n";
+            return 0;
+        }
+
+        infrastructure::PosixProcessRunner runner;
+        infrastructure::SystemDetector detector(runner, filesystem, loaded.value.system);
+        infrastructure::SnapperClient snapper(runner, loaded.value.snapper_config);
+        const auto system = detector.detect();
+        const auto snapper_config = snapper.get_config();
+        const auto snapshots = snapper.list();
+        print_system_summary(system, snapshots.size(), loaded, *cli);
+
+        application::ValidationService validation_service(filesystem);
+        const auto report = validation_service.validate(system, snapper_config, snapshots, loaded.value);
+        if (cli->command == "validate") {
+            for (const auto& item : report.diagnostics()) {
+                std::cout << '[' << domain::to_string(item.severity) << "] " << item.code << ": " << item.message << '\n';
+            }
+            std::cout << "\nValidation " << (report.valid() ? "passed" : "failed") << ": "
+                      << report.error_count() << " error(s), " << report.warning_count() << " warning(s).\n";
+            return report.valid() ? 0 : 1;
+        }
+        if (!report.valid()) {
+            std::cerr << "Generation aborted because validation found " << report.error_count()
+                      << " error(s). Run 'limine-manager validate' for details.\n";
+            return 1;
+        }
+
+        application::PreviewService preview;
+        render::LimineRenderer renderer;
+        const auto generated = renderer.render(preview.build(system, snapshots, loaded.value));
+        if (cli->command == "preview") { std::cout << generated; return 0; }
+
+        application::ChangePlanner planner(filesystem);
+        const auto plan = planner.build(system.limine_config, generated);
+        if (cli->command == "status") {
+            const auto backups = backup_service.list(plan.target);
+            std::cout << "Validation: passed\n"
+                      << "Configuration: " << application::to_string(plan.kind) << '\n'
+                      << "Backups: " << backups.size() << '\n'
+                      << "Retention: " << loaded.value.backup_retention << '\n';
+            if (!backups.empty()) std::cout << "Latest backup: " << backups.front().path << '\n';
+            return plan.has_changes() ? 3 : 0;
+        }
+        if (cli->command == "plan") { print_plan(plan); return plan.has_changes() ? 3 : 0; }
+
+        render::UnifiedDiffRenderer diff_renderer;
+        if (cli->command == "diff") {
+            if (!plan.has_changes()) { std::cout << "No changes.\n"; return 0; }
+            std::cout << diff_renderer.render(plan);
+            return 3;
+        }
+        if (cli->command == "dry-run") {
+            print_plan(plan);
+            if (plan.has_changes()) std::cout << '\n' << diff_renderer.render(plan);
+            else std::cout << "No changes would be applied.\n";
+            return plan.has_changes() ? 3 : 0;
+        }
+
+        if (!plan.has_changes()) {
+            std::cout << "No changes. " << plan.target << " is already up to date.\n";
+            return 0;
+        }
+        require_root("apply");
+        application::ApplyService apply_service;
+        const auto result = apply_service.apply(plan);
+        const auto removed = backup_service.prune(plan.target, loaded.value.backup_retention);
+        std::cout << "Applied: " << result.target << '\n';
+        if (!result.backup.empty()) std::cout << "Backup:  " << result.backup << '\n';
+        else std::cout << "Backup:  not required (new file)\n";
+        if (removed) std::cout << "Pruned:  " << removed << " old backup(s)\n";
+        return 0;
+    } catch (const std::exception& error) {
+        log_message(*cli, "error", "command.failed", error.what());
+        return 1;
+    }
+}

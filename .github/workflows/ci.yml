@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        build_type: [Debug, Release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build ${{ matrix.compiler }}
+      - name: Configure
+        env:
+          CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
+          CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build g++
+      - name: Configure ASan and UBSan
+        env: { CC: gcc, CXX: g++ }
+        run: >-
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          -DLIMINE_MANAGER_ENABLE_ASAN=ON
+          -DLIMINE_MANAGER_ENABLE_UBSAN=ON
+      - run: cmake --build build
+      - run: ctest --test-dir build --output-on-failure
+
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build clang clang-format clang-tidy
+      - name: Format check
+        run: cmake -S . -B build -G Ninja && cmake --build build --target format-check
+      - name: clang-tidy
+        env: { CC: clang, CXX: clang++ }
+        run: cmake -S . -B tidy -G Ninja -DLIMINE_MANAGER_ENABLE_CLANG_TIDY=ON && cmake --build tidy
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build g++ lcov
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIMINE_MANAGER_ENABLE_COVERAGE=ON
+      - run: cmake --build build
+      - run: ctest --test-dir build --output-on-failure
+      - run: lcov --capture --directory build --output-file coverage.info --ignore-errors mismatch
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-info
+          path: coverage.info
+
+  arch-package:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - uses: actions/checkout@v4
+      - run: pacman -Syu --noconfirm cmake ninja git util-linux snapper
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+      - run: cmake --build build && ctest --test-dir build --output-on-failure
+      - run: DESTDIR="$PWD/pkgroot" cmake --install build

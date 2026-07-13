@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! /usr/bin/limine-manager validate >/dev/null; then
+    echo "limine-manager: validation failed; configuration was not changed" >&2
+    exit 1
+fi
+
+/usr/bin/limine-manager apply
