@@ -1,4 +1,7 @@
-./AGENTS.md
-./docs/DECISIONS.md
-./docs/PROJECT_CONTEXT.md
-./FEATURES.md
+AGENTS.md
+docs/DECISIONS.md
+docs/PROJECT_CONTEXT.md
+FEATURES.md
+build/
+build-*/
+codex
