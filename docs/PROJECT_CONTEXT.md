@@ -2,14 +2,14 @@
 
 ```yaml
 project: limine-manager
-context_version: 1
-project_version: 1.0.1
+context_version: 2
+project_version: 1.1.0
 last_updated: 2026-07-13
 status: active
 primary_platform: Arch Linux
 language: C++20
 build_system: CMake
-current_focus: Validate v1.0.1 on the real target system and continue toward reliable Limine snapshot menu generation
+current_focus: Implement and validate guarded Btrfs rollback from a booted Snapper root snapshot
 source_of_truth:
   implementation: repository
   agent_rules: AGENTS.md
@@ -79,11 +79,27 @@ The core application must remain in C++.
 The current reconstructed release state is:
 
 ```text
-Version: 1.0.1
-Tag: v1.0.1
+Version: 1.1.0
+Tag: v1.1.0
 ```
 
-The principal purpose of `v1.0.1` was to correct validation failures discovered after installing and executing the previous implementation on the real Arch Linux target system.
+The principal purpose of `v1.1.0` is to add a guarded Btrfs rollback flow after booting a Snapper root snapshot from Limine.
+
+The new commands are:
+
+```text
+rollback-status
+rollback-plan
+rollback
+```
+
+`rollback-status` and `rollback-plan` are non-destructive inspection commands.
+
+`rollback` is destructive and requires root. It refuses to run from the normal root subvolume, creates a writable replacement from the currently booted managed Snapper snapshot, preserves the previous main root with a unique recovery name, moves the replacement into `@`, verifies topology, regenerates `limine.conf`, and requires a reboot.
+
+This operation is phased and recoverable, not globally atomic. Btrfs does not provide a single transaction covering every phase and Limine regeneration.
+
+The previous `v1.0.1` purpose was to correct validation failures discovered after installing and executing the previous implementation on the real Arch Linux target system.
 
 The reported real-system detection included:
 
@@ -848,4 +864,3 @@ The next task is to verify the corrected v1.0.1 against the real system,
 confirm all quality checks, inspect the generated Limine configuration,
 and then continue toward safe end-to-end snapshot boot testing.
 ```
-

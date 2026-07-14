@@ -1,4 +1,4 @@
-.TH LIMINE-MANAGER 8 "July 2026" "limine-manager 1.0.1" "System Administration"
+.TH LIMINE-MANAGER 8 "July 2026" "limine-manager 1.1.0" "System Administration"
 .SH NAME
 limine-manager \- generate and safely maintain Limine menus for Arch Linux snapshots
 .SH SYNOPSIS
@@ -56,6 +56,15 @@ Print the plan and diff without writing.
 .B apply
 Install the generated configuration atomically. Root privileges are required only when changes exist.
 .TP
+.B rollback-status
+Inspect whether the currently booted Btrfs root is the normal root, a managed Snapper snapshot, or an unknown subvolume.
+.TP
+.B rollback-plan
+Print the non-destructive Btrfs rollback plan. No subvolumes are modified.
+.TP
+.B rollback
+Replace the main Btrfs root subvolume from the currently booted managed Snapper snapshot. Root privileges are required.
+.TP
 .B list-backups
 List managed backups, newest first.
 .TP
@@ -89,6 +98,8 @@ Default Limine target configuration.
 Default canonical kernel command line.
 .SH SECURITY
 The apply and restore operations reject symbolic-link targets, acquire an exclusive lock, create synchronized backups, write a temporary file in the target directory, use atomic rename, synchronize the directory, verify installed bytes, and attempt rollback after a late failure.
+.PP
+The rollback operation is separate from restore. Restore only reinstalls a managed backup of /boot/limine.conf. Rollback changes Btrfs subvolumes: it refuses to run from the normal root, mounts the Btrfs top-level with subvolid=5, creates a writable replacement from the booted snapshot, preserves the previous main root under a unique limine-manager recovery name, verifies the resulting topology, regenerates limine.conf, and requires a reboot. This is a phased recovery design, not a single atomic Btrfs transaction.
 .SH SEE ALSO
 .BR limine (1),
 .BR snapper (8),

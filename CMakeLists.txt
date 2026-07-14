@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(limine-manager VERSION 1.0.1 LANGUAGES CXX)
+project(limine-manager VERSION 1.1.0 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(CTest)
@@ -48,12 +48,16 @@ add_library(limine_manager_core
     src/application/change_planner.cpp
     src/application/apply_service.cpp
     src/application/backup_service.cpp
+    src/application/rollback_planner.cpp
+    src/application/rollback_service.cpp
     src/application/validation_service.cpp
     src/domain/kernel_cmdline.cpp
     src/domain/menu.cpp
+    src/domain/rollback.cpp
     src/domain/validation.cpp
     src/config/config_loader.cpp
     src/infrastructure/filesystem.cpp
+    src/infrastructure/btrfs_client.cpp
     src/infrastructure/kernel_discovery.cpp
     src/infrastructure/process.cpp
     src/infrastructure/system_detector.cpp

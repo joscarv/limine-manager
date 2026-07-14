@@ -2,8 +2,11 @@
 #include "limine_manager/application/backup_service.hpp"
 #include "limine_manager/application/change_planner.hpp"
 #include "limine_manager/application/preview_service.hpp"
+#include "limine_manager/application/rollback_planner.hpp"
+#include "limine_manager/application/rollback_service.hpp"
 #include "limine_manager/application/validation_service.hpp"
 #include "limine_manager/config/config_loader.hpp"
+#include "limine_manager/infrastructure/btrfs_client.hpp"
 #include "limine_manager/infrastructure/filesystem.hpp"
 #include "limine_manager/infrastructure/process.hpp"
 #include "limine_manager/infrastructure/snapper_client.hpp"
@@ -44,6 +47,9 @@ void usage(std::ostream &output) {
               "  diff            Show a unified diff\n"
               "  dry-run         Show the plan and diff without writing\n"
               "  apply           Atomically install the generated configuration\n"
+              "  rollback-status Inspect Btrfs snapshot rollback eligibility\n"
+              "  rollback-plan   Show the Btrfs snapshot rollback plan\n"
+              "  rollback        Replace the main Btrfs root from the booted snapshot\n"
               "  list-backups    List managed backups\n"
               "  restore         Restore a managed backup\n"
               "  prune-backups   Apply the backup retention policy\n\n"
@@ -145,8 +151,10 @@ std::optional<CliOptions> parse_cli(int argc, char **argv) {
                        options.command == "validate" || options.command == "show-config" ||
                        options.command == "status" || options.command == "plan" ||
                        options.command == "diff" || options.command == "dry-run" ||
-                       options.command == "apply" || options.command == "list-backups" ||
-                       options.command == "restore" || options.command == "prune-backups";
+                       options.command == "apply" || options.command == "rollback-status" ||
+                       options.command == "rollback-plan" || options.command == "rollback" ||
+                       options.command == "list-backups" || options.command == "restore" ||
+                       options.command == "prune-backups";
     if (!known)
         return std::nullopt;
     if (options.backup_path && options.command != "restore")
@@ -192,6 +200,38 @@ void print_plan(const limine_manager::application::ChangePlan &plan) {
     std::cout << "Target: " << plan.target << '\n'
               << "Action: " << limine_manager::application::to_string(plan.kind) << '\n'
               << "Write operations: 0 (dry-run only)\n";
+}
+
+void print_rollback_status(const limine_manager::domain::RollbackPlan &plan) {
+    std::cout << "Rollback status\n\n"
+              << "Boot mode:          " << limine_manager::domain::to_string(plan.boot_mode) << '\n'
+              << "Eligible:           " << (plan.eligible ? "yes" : "no") << '\n'
+              << "Btrfs source:       " << plan.btrfs_source << '\n'
+              << "Current subvolume:  " << plan.current_subvolume << '\n'
+              << "Target subvolume:   " << plan.target_subvolume << '\n';
+    if (plan.snapshot_number)
+        std::cout << "Snapshot ID:        " << *plan.snapshot_number << '\n';
+    if (!plan.source_snapshot_subvolume.empty())
+        std::cout << "Source snapshot:    " << plan.source_snapshot_subvolume << '\n';
+    std::cout << "\nDiagnostics:\n";
+    for (const auto &item : plan.diagnostics) {
+        std::cout << '[' << limine_manager::domain::to_string(item.severity) << "] " << item.code
+                  << ": " << item.message << '\n';
+    }
+}
+
+void print_rollback_plan(const limine_manager::domain::RollbackPlan &plan) {
+    print_rollback_status(plan);
+    std::cout << "\nRollback plan\n\n"
+              << "Source snapshot:    "
+              << (plan.snapshot_number ? std::to_string(*plan.snapshot_number) : "unknown") << '\n'
+              << "Current booted root: " << plan.current_subvolume << '\n'
+              << "Target root:         " << plan.target_subvolume << '\n'
+              << "Preserved root:      " << plan.preserved_subvolume << '\n'
+              << "Replacement root:    " << plan.replacement_subvolume << "\n\n"
+              << "Operations:\n";
+    for (std::size_t i = 0; i < plan.operations.size(); ++i)
+        std::cout << (i + 1) << ". " << plan.operations[i] << '\n';
 }
 } // namespace
 
@@ -284,10 +324,59 @@ int main(int argc, char **argv) {
         infrastructure::PosixProcessRunner runner;
         infrastructure::SystemDetector detector(runner, filesystem, loaded.value.system);
         infrastructure::SnapperClient snapper(runner, loaded.value.snapper_config);
+        infrastructure::PosixBtrfsClient btrfs(runner);
         const auto system = detector.detect();
         const auto snapper_config = snapper.get_config();
         const auto snapshots = snapper.list();
         print_system_summary(system, snapshots.size(), loaded, *cli);
+
+        if (cli->command == "rollback-status" || cli->command == "rollback-plan" ||
+            cli->command == "rollback") {
+            application::RollbackPlanner rollback_planner(btrfs);
+            const auto rollback_plan =
+                rollback_planner.build(system, snapper_config, snapshots, loaded.value);
+            if (cli->command == "rollback-status") {
+                print_rollback_status(rollback_plan);
+                return 0;
+            }
+            if (cli->command == "rollback-plan") {
+                print_rollback_plan(rollback_plan);
+                return rollback_plan.eligible ? 0 : 1;
+            }
+
+            require_root("rollback");
+            if (!rollback_plan.eligible) {
+                print_rollback_plan(rollback_plan);
+                return 1;
+            }
+            application::RollbackService rollback_service(btrfs);
+            const auto rollback_result = rollback_service.execute(rollback_plan);
+
+            application::PreviewService preview;
+            render::LimineRenderer renderer;
+            const auto generated = renderer.render(preview.build(system, snapshots, loaded.value));
+            application::ChangePlanner planner(filesystem);
+            const auto plan = planner.build(system.limine_config, generated);
+            application::ApplyService apply_service;
+            const auto result = apply_service.apply(plan);
+            const auto removed =
+                backup_service.prune(system.limine_config, loaded.value.backup_retention);
+
+            std::cout << "Rollback completed.\n"
+                      << "Active root:      " << rollback_result.active_subvolume << '\n'
+                      << "Preserved root:   " << rollback_result.preserved_subvolume << '\n';
+            if (result.changed) {
+                std::cout << "Limine updated:   " << result.target << '\n';
+                if (!result.backup.empty())
+                    std::cout << "Limine backup:    " << result.backup << '\n';
+            } else {
+                std::cout << "Limine updated:   no changes required\n";
+            }
+            if (removed)
+                std::cout << "Pruned backups:   " << removed << '\n';
+            std::cout << "Reboot required:  yes\n";
+            return 0;
+        }
 
         application::ValidationService validation_service(filesystem);
         const auto report =

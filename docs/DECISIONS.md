@@ -824,3 +824,68 @@ A new agent can continue the project without processing the complete historical 
 
 The checkpoint must be updated when the current project state materially changes.
 
+---
+
+# ADR-020: Btrfs rollback is phased, not globally atomic
+
+```yaml
+status: ACCEPTED
+date: 2026-07-13
+```
+
+## Context
+
+Version 1.1.0 adds system rollback from a currently booted Snapper root snapshot.
+
+The operation must replace the main Btrfs root subvolume, normally:
+
+```text
+@
+```
+
+with a writable subvolume created from the currently booted snapshot:
+
+```text
+@snapshots/<ID>/snapshot
+```
+
+Btrfs supports subvolume snapshots, moving/renaming subvolumes, and mounting the top-level subvolume through `subvolid=5`, but it does not provide one application-level transaction that covers detection, top-level mount, replacement creation, root preservation, final switch, topology verification, and Limine regeneration.
+
+## Decision
+
+Rollback is implemented as an explicit phased operation:
+
+```text
+validate plan
+acquire rollback lock
+mount top-level Btrfs
+create writable replacement from the booted snapshot
+preserve the current main root with a unique recovery name
+move the replacement into the main root name
+verify topology
+regenerate limine.conf
+require reboot
+```
+
+The previous main root is not deleted automatically. It is preserved as:
+
+```text
+@.limine-manager.rollback.<snapshot-id>.<transaction-id>
+```
+
+The source Snapper snapshot is not modified.
+
+## Consequences
+
+Positive:
+
+* rollback can be inspected before execution;
+* the previous main root remains recoverable;
+* failures after preservation can often be automatically reverted;
+* the operation is testable through typed infrastructure boundaries.
+
+Negative:
+
+* there is no claim of full atomicity across all phases;
+* power loss or kernel-level failures may still require manual recovery using the preserved subvolume;
+* retention or cleanup of preserved root subvolumes requires a future explicit policy.

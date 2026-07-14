@@ -2,11 +2,15 @@
 #include "limine_manager/application/backup_service.hpp"
 #include "limine_manager/application/change_planner.hpp"
 #include "limine_manager/application/preview_service.hpp"
+#include "limine_manager/application/rollback_planner.hpp"
+#include "limine_manager/application/rollback_service.hpp"
 #include "limine_manager/application/validation_service.hpp"
 #include "limine_manager/config/config_loader.hpp"
 #include "limine_manager/domain/kernel_cmdline.hpp"
 #include "limine_manager/domain/menu.hpp"
+#include "limine_manager/domain/rollback.hpp"
 #include "limine_manager/domain/validation.hpp"
+#include "limine_manager/infrastructure/btrfs_client.hpp"
 #include "limine_manager/infrastructure/filesystem.hpp"
 #include "limine_manager/infrastructure/kernel_discovery.hpp"
 #include "limine_manager/render/limine_renderer.hpp"
@@ -114,6 +118,71 @@ class FakeProcessRunner final : public limine_manager::infrastructure::ProcessRu
         return result;
     }
     std::map<std::string, limine_manager::infrastructure::ProcessResult> responses_;
+};
+
+class FakeBtrfsClient final : public limine_manager::infrastructure::BtrfsClient {
+  public:
+    std::vector<limine_manager::infrastructure::BtrfsSubvolume>
+    list_subvolumes(const std::filesystem::path &) const override {
+        if (fail_list)
+            return {};
+        return subvolumes;
+    }
+    void mount_top_level(const std::string &,
+                         const std::filesystem::path &mount_point) const override {
+        mounted = true;
+        mounted_at = mount_point;
+    }
+    void unmount(const std::filesystem::path &) const override {
+        mounted = false;
+    }
+    void create_writable_snapshot(const std::filesystem::path &source,
+                                  const std::filesystem::path &destination) const override {
+        if (fail_create)
+            throw std::runtime_error("create failed");
+        if (!contains(rel(source)) || contains(rel(destination)))
+            throw std::runtime_error("invalid snapshot operation");
+        subvolumes.push_back({next_id++, rel(destination)});
+    }
+    void move_subvolume(const std::filesystem::path &source,
+                        const std::filesystem::path &destination) const override {
+        ++move_count;
+        if (fail_second_move && move_count == 2)
+            throw std::runtime_error("move failed");
+        const auto src = rel(source);
+        const auto dst = rel(destination);
+        if (!contains(src) || contains(dst))
+            throw std::runtime_error("invalid move operation");
+        for (auto &subvolume : subvolumes) {
+            if (subvolume.path == src) {
+                subvolume.path = dst;
+                return;
+            }
+        }
+    }
+    void sync_filesystem(const std::filesystem::path &) const override {}
+
+    [[nodiscard]] bool contains(const std::string &path) const {
+        return std::any_of(subvolumes.begin(), subvolumes.end(),
+                           [&](const auto &item) { return item.path == path; });
+    }
+
+    [[nodiscard]] std::string rel(const std::filesystem::path &path) const {
+        const auto relative = path.lexically_relative(mounted_at);
+        if (relative.empty())
+            return path.string();
+        return relative.string();
+    }
+
+    mutable std::vector<limine_manager::infrastructure::BtrfsSubvolume> subvolumes{
+        {256, "@"}, {257, "@snapshots/123/snapshot"}};
+    mutable bool mounted{false};
+    mutable std::filesystem::path mounted_at{"/"};
+    mutable unsigned long next_id{300};
+    mutable int move_count{0};
+    bool fail_create{false};
+    bool fail_second_move{false};
+    bool fail_list{false};
 };
 
 limine_manager::infrastructure::KernelInstallation kernel(std::string pkgbase, std::string release,
@@ -529,6 +598,98 @@ void validation_report_test() {
     assert(!report.valid());
     assert(report.error_count() == 1);
 }
+
+limine_manager::infrastructure::SystemInfo rollback_system(std::string subvolume) {
+    limine_manager::infrastructure::SystemInfo system;
+    system.root_fstype = "btrfs";
+    system.root_source = "/dev/mapper/cryptroot[/@]";
+    system.root_subvolume = std::move(subvolume);
+    system.kernel_cmdline = limine_manager::domain::KernelCommandLine::parse(
+        "root=/dev/mapper/cryptroot rootflags=subvol=@ rw");
+    return system;
+}
+
+limine_manager::domain::RollbackPlan
+rollback_plan_for(const limine_manager::infrastructure::SystemInfo &system,
+                  const FakeBtrfsClient &btrfs) {
+    using namespace limine_manager;
+    application::RollbackPlanner planner(btrfs, {"testtx"});
+    return planner.build(system, {"root", "/", "btrfs"}, {{123, "2026-07-13", "before", true}},
+                         config::AppConfig{});
+}
+
+void rollback_planner_test() {
+    using namespace limine_manager;
+    FakeBtrfsClient btrfs;
+
+    const auto normal = rollback_plan_for(rollback_system("@"), btrfs);
+    assert(!normal.eligible);
+    assert(normal.boot_mode == domain::RollbackBootMode::normal_root);
+
+    const auto eligible = rollback_plan_for(rollback_system("@snapshots/123/snapshot"), btrfs);
+    assert(eligible.eligible);
+    assert(eligible.boot_mode == domain::RollbackBootMode::managed_snapshot);
+    assert(eligible.snapshot_number == 123);
+    assert(eligible.target_subvolume == "@");
+    assert(eligible.preserved_subvolume == "@.limine-manager.rollback.123.testtx");
+    assert(eligible.replacement_subvolume == "@.limine-manager.new.123.testtx");
+    assert(eligible.source_snapshot_read_only);
+
+    const auto unknown = rollback_plan_for(rollback_system("@snapshots/999/snapshot"), btrfs);
+    assert(!unknown.eligible);
+    assert(unknown.snapshot_number == 999);
+
+    FakeBtrfsClient missing_target;
+    missing_target.subvolumes = {{257, "@snapshots/123/snapshot"}};
+    const auto no_target =
+        rollback_plan_for(rollback_system("@snapshots/123/snapshot"), missing_target);
+    assert(!no_target.eligible);
+
+    FakeBtrfsClient conflict;
+    conflict.subvolumes = {{256, "@"},
+                           {257, "@snapshots/123/snapshot"},
+                           {300, "@.limine-manager.rollback.123.testtx"}};
+    const auto conflicted = rollback_plan_for(rollback_system("@snapshots/123/snapshot"), conflict);
+    assert(!conflicted.eligible);
+}
+
+void rollback_service_test() {
+    using namespace limine_manager;
+    FakeBtrfsClient btrfs;
+    const auto plan = rollback_plan_for(rollback_system("@snapshots/123/snapshot"), btrfs);
+    assert(plan.eligible);
+
+    const auto runtime = std::filesystem::temp_directory_path() /
+                         ("limine-manager-rollback-test-" + std::to_string(::getpid()));
+    std::filesystem::remove_all(runtime);
+    application::RollbackService service(btrfs, {runtime});
+    const auto result = service.execute(plan);
+    assert(result.active_subvolume == "@");
+    assert(result.preserved_subvolume == "@.limine-manager.rollback.123.testtx");
+    assert(btrfs.contains("@"));
+    assert(btrfs.contains("@.limine-manager.rollback.123.testtx"));
+    assert(!btrfs.contains("@.limine-manager.new.123.testtx"));
+    assert(!btrfs.mounted);
+    std::filesystem::remove_all(runtime);
+
+    FakeBtrfsClient failing;
+    failing.fail_second_move = true;
+    const auto failing_plan =
+        rollback_plan_for(rollback_system("@snapshots/123/snapshot"), failing);
+    application::RollbackService failing_service(failing, {runtime});
+    bool rejected = false;
+    try {
+        (void)failing_service.execute(failing_plan);
+    } catch (const std::runtime_error &) {
+        rejected = true;
+    }
+    assert(rejected);
+    assert(failing.contains("@"));
+    assert(!failing.contains("@.limine-manager.rollback.123.testtx"));
+    assert(failing.contains("@.limine-manager.failed-replacement"));
+    assert(!failing.mounted);
+    std::filesystem::remove_all(runtime);
+}
 } // namespace
 
 int main() {
@@ -548,5 +709,7 @@ int main() {
     domain_invariant_test();
     validation_report_test();
     fixture_config_test();
+    rollback_planner_test();
+    rollback_service_test();
     std::cout << "All tests passed\n";
 }

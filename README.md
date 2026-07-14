@@ -12,6 +12,7 @@
 - Provides preview, status, plan, unified diff and dry-run workflows.
 - Applies changes with locking, synchronized backups, same-filesystem temporary files, atomic rename, verification and rollback.
 - Lists, restores and prunes managed backups.
+- Inspects and executes guarded Btrfs rollback from a currently booted Snapper root snapshot.
 - Includes an opt-in pacman hook, man page, CI workflows and an Arch `PKGBUILD` template.
 
 ## Requirements
@@ -106,6 +107,9 @@ limine-manager plan
 limine-manager diff
 limine-manager dry-run
 sudo limine-manager apply
+limine-manager rollback-status
+limine-manager rollback-plan
+sudo limine-manager rollback
 limine-manager list-backups
 sudo limine-manager restore
 sudo limine-manager --backup /boot/limine.conf.bak.<id> restore
@@ -120,6 +124,22 @@ limine-manager --verbose --log-format json status
 ```
 
 JSON diagnostics are newline-delimited and written to standard error. Command output remains on standard output.
+
+## Snapshot rollback
+
+Booting a snapshot from Limine is temporary: the normal `Arch Linux -> Linux` entry still boots the main Btrfs root subvolume, normally `@`.
+
+`limine-manager rollback` is different. It is a high-risk administrative operation that must be run only after booting a Snapper root snapshot and verifying that the system state is the desired one:
+
+```bash
+limine-manager rollback-status
+limine-manager rollback-plan
+sudo limine-manager rollback
+```
+
+The rollback command refuses to run from the normal root subvolume. When eligible, it mounts the Btrfs top-level with `subvolid=5`, creates a writable replacement from the booted snapshot, preserves the previous `@` under a unique `@.limine-manager.rollback.<snapshot>.<transaction>` name, moves the replacement into `@`, verifies the topology, regenerates `limine.conf`, and requires a reboot.
+
+`restore` does not perform a Btrfs rollback. It only restores a managed backup of `/boot/limine.conf`.
 
 ## Configuration
 

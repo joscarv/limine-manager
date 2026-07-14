@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here. The project follows Semantic Versioning.
 
+## [1.1.0] - 2026-07-13
+
+### Added
+
+- Add guarded Btrfs snapshot rollback commands: `rollback-status`, `rollback-plan`, and `rollback`.
+- Add rollback planning models, Btrfs infrastructure, execution phases, locking, topology verification, and partial recovery after failed subvolume moves.
+- Preserve the previous main root subvolume under a unique `@.limine-manager.rollback.<snapshot>.<transaction>` name before replacing `@`.
+- Regenerate `limine.conf` after a successful Btrfs rollback using the existing apply workflow.
+- Add regression tests for rollback eligibility, conflicts, successful execution, and recovery after a failed final move.
+
+### Compatibility
+
+- Configuration schema remains version 1.
+- Existing `apply`, `restore`, backup, and Limine rendering behavior remain unchanged.
+- `restore` still restores only managed `limine.conf` backups; it does not perform Btrfs system rollback.
+
 ## [1.0.1] - 2026-07-13
 
 ### Fixed
