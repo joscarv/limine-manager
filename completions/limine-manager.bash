@@ -3,7 +3,7 @@ _limine_manager() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    commands="check-config validate preview show-config status plan diff dry-run apply rollback-status rollback-plan rollback list-backups restore prune-backups"
+    commands="check-config validate themes preview show-config status plan diff dry-run apply rollback-status rollback-plan rollback list-backups restore prune-backups"
     case "$prev" in
         --config|--backup) COMPREPLY=( $(compgen -f -- "$cur") ); return ;;
         --log-format) COMPREPLY=( $(compgen -W "text json" -- "$cur") ); return ;;

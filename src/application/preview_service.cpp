@@ -1,4 +1,5 @@
 #include "limine_manager/application/preview_service.hpp"
+#include "limine_manager/config/theme.hpp"
 
 #include <algorithm>
 #include <unordered_map>
@@ -79,6 +80,10 @@ PreviewService::build(const infrastructure::SystemInfo &system,
                       const std::vector<infrastructure::SnapshotInfo> &snapshots,
                       const config::AppConfig &config) const {
     domain::MenuDocument document;
+    if (const auto *theme = config::find_theme(config.theme_name)) {
+        for (const auto &option : theme->options)
+            document.global_options.push_back(option);
+    }
     for (const auto &option : config.limine_options)
         document.global_options.push_back(option);
 

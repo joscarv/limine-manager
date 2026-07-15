@@ -11,6 +11,7 @@ All notable changes to this project are documented here. The project follows Sem
 - Preserve the previous main root subvolume under a unique `@.limine-manager.rollback.<snapshot>.<transaction>` name before replacing `@`.
 - Regenerate `limine.conf` after a successful Btrfs rollback using the existing apply workflow.
 - Add regression tests for rollback eligibility, conflicts, successful execution, and recovery after a failed final move.
+- Add built-in visual theme presets and a `themes` command to list them.
 
 ### Compatibility
 

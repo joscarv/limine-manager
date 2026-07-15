@@ -29,6 +29,10 @@ include =
 exclude =
 order =
 
+[theme]
+# Built-in presets: none, tokyo-night, catppuccin, nord, dracula, gruvbox
+name = none
+
 [limine]
 timeout = 5
 remember_last_entry = yes

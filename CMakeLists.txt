@@ -56,6 +56,7 @@ add_library(limine_manager_core
     src/domain/rollback.cpp
     src/domain/validation.cpp
     src/config/config_loader.cpp
+    src/config/theme.cpp
     src/infrastructure/filesystem.cpp
     src/infrastructure/btrfs_client.cpp
     src/infrastructure/kernel_discovery.cpp

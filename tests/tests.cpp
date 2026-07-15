@@ -293,6 +293,7 @@ void config_loader_test() {
                            "directory=/.snapshots\nmax_snapshots=3\n"
                            "[menu]\nroot_title=My Linux\nroot_expanded=false\n"
                            "[kernels]\ninclude=linux, linux-lts\norder=linux-lts, linux\n"
+                           "[theme]\nname=tokyo-night\n"
                            "[limine]\ntimeout=10\n";
     infrastructure::RealFileSystem filesystem;
     config::ConfigLoader loader(filesystem, root / "missing-default.conf");
@@ -304,8 +305,20 @@ void config_loader_test() {
     assert(loaded.value.root_menu_title == "My Linux");
     assert(!loaded.value.root_menu_expanded);
     assert(loaded.value.include_kernels.size() == 2);
+    assert(loaded.value.theme_name == "tokyo-night");
     assert(loaded.value.limine_options.at("timeout") == "10");
+    assert(loader.render(loaded).find("[theme]\nname = tokyo-night") != std::string::npos);
     assert(loader.render(loaded).find("Source: " + path.string()) != std::string::npos);
+
+    const auto invalid_theme = root / "invalid-theme.conf";
+    std::ofstream(invalid_theme) << "[theme]\nname=unknown\n";
+    bool rejected_theme = false;
+    try {
+        (void)loader.load(invalid_theme);
+    } catch (const std::runtime_error &) {
+        rejected_theme = true;
+    }
+    assert(rejected_theme);
     std::filesystem::remove_all(root);
 }
 
@@ -354,6 +367,7 @@ void configurable_preview_test() {
     cfg.max_snapshots = 1;
     cfg.include_kernels = {"linux-lts"};
     cfg.snapshots_subvolume = "@snaps";
+    cfg.theme_name = "catppuccin";
     application::PreviewService service;
     render::LimineRenderer renderer;
     const auto output = renderer.render(service.build(
@@ -363,6 +377,9 @@ void configurable_preview_test() {
     assert(output.find("//Linux\n") == std::string::npos);
     assert(output.find("@snaps/2/snapshot") != std::string::npos);
     assert(output.find("@snaps/1/snapshot") == std::string::npos);
+    assert(output.find("term_background: 001E1E2E") != std::string::npos);
+    assert(output.find("interface_branding_colour: 89B4FA") != std::string::npos);
+    assert(output.find("term_palette: 11111B;F38BA8;A6E3A1") != std::string::npos);
 }
 
 void simulated_system_integration_test() {

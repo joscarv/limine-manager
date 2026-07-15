@@ -6,6 +6,7 @@
 #include "limine_manager/application/rollback_service.hpp"
 #include "limine_manager/application/validation_service.hpp"
 #include "limine_manager/config/config_loader.hpp"
+#include "limine_manager/config/theme.hpp"
 #include "limine_manager/infrastructure/btrfs_client.hpp"
 #include "limine_manager/infrastructure/filesystem.hpp"
 #include "limine_manager/infrastructure/process.hpp"
@@ -40,6 +41,7 @@ void usage(std::ostream &output) {
               "Commands:\n"
               "  check-config    Validate configuration syntax and schema\n"
               "  validate        Validate the detected system\n"
+              "  themes          List built-in visual themes\n"
               "  preview         Render the generated limine.conf\n"
               "  show-config     Print the effective manager configuration\n"
               "  status          Show validation, change, and backup status\n"
@@ -148,13 +150,13 @@ std::optional<CliOptions> parse_cli(int argc, char **argv) {
     if (options.help || options.version)
         return options;
     const bool known = options.command == "check-config" || options.command == "preview" ||
-                       options.command == "validate" || options.command == "show-config" ||
-                       options.command == "status" || options.command == "plan" ||
-                       options.command == "diff" || options.command == "dry-run" ||
-                       options.command == "apply" || options.command == "rollback-status" ||
-                       options.command == "rollback-plan" || options.command == "rollback" ||
-                       options.command == "list-backups" || options.command == "restore" ||
-                       options.command == "prune-backups";
+                       options.command == "validate" || options.command == "themes" ||
+                       options.command == "show-config" || options.command == "status" ||
+                       options.command == "plan" || options.command == "diff" ||
+                       options.command == "dry-run" || options.command == "apply" ||
+                       options.command == "rollback-status" || options.command == "rollback-plan" ||
+                       options.command == "rollback" || options.command == "list-backups" ||
+                       options.command == "restore" || options.command == "prune-backups";
     if (!known)
         return std::nullopt;
     if (options.backup_path && options.command != "restore")
@@ -263,6 +265,12 @@ int main(int argc, char **argv) {
             std::cout << "Configuration valid (schema " << loaded.value.schema_version
                       << "): " << (loaded.source ? loaded.source->string() : "built-in defaults")
                       << "\n";
+            return 0;
+        }
+        if (cli->command == "themes") {
+            std::cout << "Built-in themes:\n";
+            for (const auto &theme : config::available_themes())
+                std::cout << "  " << theme.name << " - " << theme.display_name << '\n';
             return 0;
         }
 

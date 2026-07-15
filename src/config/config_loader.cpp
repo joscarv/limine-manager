@@ -1,4 +1,5 @@
 #include "limine_manager/config/config_loader.hpp"
+#include "limine_manager/config/theme.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -133,6 +134,12 @@ void assign(AppConfig &config, const std::string &section, const std::string &ke
         else
             throw std::runtime_error("Unknown key [kernels]." + key + " at line " +
                                      std::to_string(line));
+    } else if (section == "theme") {
+        if (key == "name")
+            config.theme_name = lower(value);
+        else
+            throw std::runtime_error("Unknown key [theme]." + key + " at line " +
+                                     std::to_string(line));
     } else if (section == "limine") {
         config.limine_options[key] = value;
     } else {
@@ -160,6 +167,10 @@ void validate_config(const AppConfig &config) {
         throw std::runtime_error("menu.root_title cannot be empty");
     if (config.snapshots_menu_title.empty())
         throw std::runtime_error("menu.snapshots_title cannot be empty");
+    if (!find_theme(config.theme_name))
+        throw std::runtime_error("Unknown theme '" + config.theme_name +
+                                 "'. Supported themes: none, tokyo-night, catppuccin, nord, "
+                                 "dracula, gruvbox");
     for (const auto &item : config.include_kernels) {
         if (std::find(config.exclude_kernels.begin(), config.exclude_kernels.end(), item) !=
             config.exclude_kernels.end())
@@ -245,6 +256,8 @@ std::string ConfigLoader::render(const LoadedConfig &loaded) const {
         << "include = " << join(c.include_kernels) << '\n'
         << "exclude = " << join(c.exclude_kernels) << '\n'
         << "order = " << join(c.kernel_order) << "\n\n";
+    out << "[theme]\n"
+        << "name = " << c.theme_name << "\n\n";
     out << "[limine]\n";
     for (const auto &[key, value] : c.limine_options)
         out << key << " = " << value << '\n';

@@ -4,6 +4,7 @@ local -a commands
 commands=(
   'check-config:validate configuration syntax and schema'
   'validate:validate the detected system'
+  'themes:list built-in visual themes'
   'preview:render the generated configuration'
   'show-config:print the effective manager configuration'
   'status:show validation, change, and backup status'

@@ -8,6 +8,7 @@
 - Parses `/etc/kernel/cmdline` without shell evaluation.
 - Reads Snapper configuration and snapshots through stable CSV output.
 - Builds a hierarchical Limine menu for the live system and bootable snapshots.
+- Includes built-in clean visual themes such as Tokyo Night, Catppuccin, Nord, Dracula and Gruvbox.
 - Validates the boot mount, Btrfs subvolume, encrypted root mapping, kernel files and snapshot paths.
 - Provides preview, status, plan, unified diff and dry-run workflows.
 - Applies changes with locking, synchronized backups, same-filesystem temporary files, atomic rename, verification and rollback.
@@ -100,6 +101,7 @@ limine-manager --help
 limine-manager --version
 limine-manager check-config
 limine-manager validate
+limine-manager themes
 limine-manager preview
 limine-manager show-config
 limine-manager status
@@ -160,6 +162,23 @@ Validate only the configuration file without inspecting the system:
 ```bash
 limine-manager check-config
 ```
+
+## Themes
+
+List available visual presets with:
+
+```bash
+limine-manager themes
+```
+
+Select a theme in the configuration:
+
+```text
+[theme]
+name = tokyo-night
+```
+
+Available presets are `none`, `tokyo-night`, `catppuccin`, `nord`, `dracula`, and `gruvbox`. Theme values are emitted as real Limine interface and terminal color options such as `term_palette`, `term_background`, `term_foreground`, `interface_branding_colour`, and `interface_help_colour`. They are rendered before the `[limine]` options, so advanced users can override individual values in `[limine]` using Limine's `RRGGBB` or `TTRRGGBB` formats.
 
 ## Shell completion
 
