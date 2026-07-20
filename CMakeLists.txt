@@ -97,6 +97,11 @@ if(LIMINE_MANAGER_BUILD_TESTS)
     limine_manager_apply_quality(limine_manager_tests)
     target_compile_options(limine_manager_tests PRIVATE $<$<CXX_COMPILER_ID:GNU,Clang>:-UNDEBUG>)
     add_test(NAME limine_manager_tests COMMAND limine_manager_tests)
+
+    add_executable(limine_manager_runtime_lock_tests tests/runtime_lock_tests.cpp)
+    target_link_libraries(limine_manager_runtime_lock_tests PRIVATE limine_manager_core)
+    limine_manager_apply_quality(limine_manager_runtime_lock_tests)
+    add_test(NAME limine_manager_runtime_lock_tests COMMAND limine_manager_runtime_lock_tests)
 endif()
 
 add_custom_target(format
