@@ -3,6 +3,7 @@
 #include <cerrno>
 #include <chrono>
 #include <cstring>
+#include <cstdlib>
 #include <fcntl.h>
 #include <iomanip>
 #include <sstream>
@@ -15,6 +16,16 @@
 
 namespace limine_manager::application {
 namespace {
+
+std::filesystem::path default_runtime_directory() {
+    if (::geteuid() == 0)
+        return "/run/limine-manager";
+    if (const char *xdg_runtime = std::getenv("XDG_RUNTIME_DIR");
+        xdg_runtime != nullptr && *xdg_runtime != '\0')
+        return std::filesystem::path(xdg_runtime) / "limine-manager";
+    return std::filesystem::temp_directory_path() /
+           ("limine-manager-" + std::to_string(::geteuid()));
+}
 
 std::string normalize_newline(std::string value) {
     if (!value.empty() && value.back() != '\n')
@@ -147,6 +158,8 @@ void restore_from_backup(const std::filesystem::path &backup, const std::filesys
 
 } // namespace
 
+ApplyService::ApplyService() : runtime_directory_(default_runtime_directory()) {}
+
 ApplyResult ApplyService::apply(const ChangePlan &plan) const {
     if (!plan.has_changes())
         return {false, plan.target, {}};
@@ -156,7 +169,22 @@ ApplyResult ApplyService::apply(const ChangePlan &plan) const {
 
     const auto directory =
         plan.target.parent_path().empty() ? std::filesystem::path(".") : plan.target.parent_path();
-    const auto lock_path = directory / (plan.target.filename().string() + ".lock");
+    if (runtime_directory_.empty())
+        throw std::runtime_error("apply runtime directory cannot be empty");
+
+    std::error_code runtime_error;
+    std::filesystem::create_directories(runtime_directory_, runtime_error);
+    if (runtime_error)
+        throw std::runtime_error("cannot create runtime directory '" +
+                                 runtime_directory_.string() + "': " + runtime_error.message());
+
+    struct stat runtime_metadata {};
+    if (::lstat(runtime_directory_.c_str(), &runtime_metadata) < 0)
+        fail("cannot inspect runtime directory", runtime_directory_);
+    if (S_ISLNK(runtime_metadata.st_mode) || !S_ISDIR(runtime_metadata.st_mode))
+        throw std::runtime_error("unsafe apply runtime directory: " + runtime_directory_.string());
+
+    const auto lock_path = runtime_directory_ / "apply.lock";
     UniqueFd lock_fd(::open(lock_path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600));
     if (lock_fd.get() < 0)
         fail("cannot open lock", lock_path);
