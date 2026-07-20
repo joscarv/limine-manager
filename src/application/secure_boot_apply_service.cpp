@@ -44,8 +44,6 @@ ApplyResult SecureBootApplyService::apply(const ChangePlan &plan,
         return result;
     } catch (...) {
         std::error_code ec;
-        std::filesystem::copy_file(efi, efi_backup,
-                                   std::filesystem::copy_options::overwrite_existing, ec);
         std::filesystem::copy_file(efi_backup, efi,
                                    std::filesystem::copy_options::overwrite_existing, ec);
         if (!result.backup.empty())
