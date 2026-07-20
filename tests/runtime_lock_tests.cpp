@@ -16,19 +16,40 @@
 
 namespace {
 
+[[noreturn]] void fail(const std::string &message) {
+    throw std::runtime_error(message + ": " + std::strerror(errno));
+}
+
 void write_byte(int fd, char value) {
-    while (::write(fd, &value, 1) < 0) {
-        if (errno != EINTR)
-            throw std::runtime_error(std::string("pipe write failed: ") + std::strerror(errno));
+    while (true) {
+        const auto count = ::write(fd, &value, 1);
+        if (count == 1)
+            return;
+        if (count < 0 && errno == EINTR)
+            continue;
+        if (count < 0)
+            fail("pipe write failed");
+        throw std::runtime_error("pipe write returned an unexpected byte count");
     }
 }
 
 void read_byte(int fd) {
     char value{};
-    while (::read(fd, &value, 1) < 0) {
-        if (errno != EINTR)
-            throw std::runtime_error(std::string("pipe read failed: ") + std::strerror(errno));
+    while (true) {
+        const auto count = ::read(fd, &value, 1);
+        if (count == 1)
+            return;
+        if (count == 0)
+            throw std::runtime_error("pipe closed before synchronization byte was received");
+        if (errno == EINTR)
+            continue;
+        fail("pipe read failed");
     }
+}
+
+void close_fd(int fd) {
+    if (::close(fd) < 0)
+        fail("close failed");
 }
 
 } // namespace
@@ -54,35 +75,51 @@ int main() {
 
     int ready_pipe[2]{};
     int release_pipe[2]{};
-    assert(::pipe(ready_pipe) == 0);
-    assert(::pipe(release_pipe) == 0);
+    if (::pipe(ready_pipe) < 0)
+        fail("cannot create ready pipe");
+    if (::pipe(release_pipe) < 0) {
+        const auto saved_errno = errno;
+        ::close(ready_pipe[0]);
+        ::close(ready_pipe[1]);
+        errno = saved_errno;
+        fail("cannot create release pipe");
+    }
 
     const auto child = ::fork();
-    assert(child >= 0);
+    if (child < 0)
+        fail("fork failed");
     if (child == 0) {
         ::close(ready_pipe[0]);
         ::close(release_pipe[1]);
 
-        const int lock_fd = ::open(lock_path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600);
+        const int lock_fd =
+            ::open(lock_path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600);
         if (lock_fd < 0 || ::flock(lock_fd, LOCK_EX) < 0)
             _exit(10);
 
         const char ready = 'R';
         if (::write(ready_pipe[1], &ready, 1) != 1)
             _exit(11);
+        ::close(ready_pipe[1]);
 
         char release{};
-        while (::read(release_pipe[0], &release, 1) < 0) {
-            if (errno != EINTR)
+        while (true) {
+            const auto count = ::read(release_pipe[0], &release, 1);
+            if (count == 1)
+                break;
+            if (count == 0)
                 _exit(12);
+            if (errno != EINTR)
+                _exit(13);
         }
 
+        ::close(release_pipe[0]);
         ::close(lock_fd);
         _exit(0);
     }
 
-    ::close(ready_pipe[1]);
-    ::close(release_pipe[0]);
+    close_fd(ready_pipe[1]);
+    close_fd(release_pipe[0]);
     read_byte(ready_pipe[0]);
 
     bool concurrent_apply_rejected = false;
@@ -98,16 +135,19 @@ int main() {
     assert(std::filesystem::exists(lock_path));
     assert(!std::filesystem::exists(boot / "limine.conf.lock"));
 
-    for (const auto &entry : std::filesystem::directory_iterator(boot)) {
+    for (const auto &entry : std::filesystem::directory_iterator(boot))
         assert(entry.path() == target);
-    }
 
     write_byte(release_pipe[1], 'X');
-    ::close(ready_pipe[0]);
-    ::close(release_pipe[1]);
+    close_fd(ready_pipe[0]);
+    close_fd(release_pipe[1]);
 
     int child_status{};
-    assert(::waitpid(child, &child_status, 0) == child);
+    const auto waited = ::waitpid(child, &child_status, 0);
+    if (waited < 0)
+        fail("waitpid failed");
+    if (waited != child)
+        throw std::runtime_error("waitpid returned an unexpected process id");
     assert(WIFEXITED(child_status));
     assert(WEXITSTATUS(child_status) == 0);
 
