@@ -72,6 +72,7 @@ add_library(limine_manager_core
     src/config/theme.cpp
     src/infrastructure/filesystem.cpp
     src/infrastructure/btrfs_client.cpp
+    src/infrastructure/efi_image_transaction.cpp
     src/infrastructure/kernel_discovery.cpp
     src/infrastructure/process.cpp
     src/infrastructure/secure_boot_tools.cpp
@@ -105,6 +106,7 @@ if(LIMINE_MANAGER_BUILD_TESTS)
 
     limine_manager_add_test(limine_manager_runtime_lock_tests tests/runtime_lock_tests.cpp)
     limine_manager_add_test(limine_manager_secure_boot_tools_tests tests/secure_boot_tools_tests.cpp)
+    limine_manager_add_test(limine_manager_efi_image_transaction_tests tests/efi_image_transaction_tests.cpp)
 endif()
 
 add_custom_target(format
