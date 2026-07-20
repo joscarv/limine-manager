@@ -1,7 +1,9 @@
 #include "limine_manager/application/apply_service.hpp"
+#include "limine_manager/application/automation.hpp"
 #include "limine_manager/application/backup_service.hpp"
 #include "limine_manager/application/change_planner.hpp"
 #include "limine_manager/application/preview_service.hpp"
+#include "limine_manager/application/status_service.hpp"
 #include "limine_manager/application/rollback_planner.hpp"
 #include "limine_manager/application/rollback_service.hpp"
 #include "limine_manager/application/validation_service.hpp"
@@ -192,6 +194,7 @@ limine_manager::infrastructure::KernelInstallation kernel(std::string pkgbase, s
             std::move(title),
             "/boot/vmlinuz-linux",
             {"/boot/intel-ucode.img", "/boot/initramfs-linux.img"},
+            false,
             running};
 }
 
@@ -282,6 +285,50 @@ void kernel_discovery_test() {
     std::filesystem::remove_all(root);
 }
 
+void uki_discovery_and_render_test() {
+    using namespace limine_manager;
+    FakeFileSystem filesystem;
+    filesystem.add_file("/boot/vmlinuz-linux", "kernel");
+    filesystem.add_file("/boot/EFI/Linux/arch-linux.efi", "uki");
+    filesystem.add_file("/usr/lib/modules/7.1.3-arch1-2/pkgbase", "linux\n");
+    filesystem.add_file("/proc/cpuinfo", "vendor_id : GenuineIntel\n");
+
+    infrastructure::KernelDiscovery discovery(filesystem);
+    const auto kernels = discovery.discover("7.1.3-arch1-2");
+    assert(kernels.size() == 1);
+    assert(kernels.front().unified_kernel_image);
+    assert(kernels.front().image == "/boot/EFI/Linux/arch-linux.efi");
+    assert(kernels.front().initrds.empty());
+
+    infrastructure::SystemInfo system;
+    system.boot_mount = "/boot";
+    system.kernels = kernels;
+    system.kernel_cmdline = domain::KernelCommandLine::parse(
+        "root=/dev/mapper/cryptroot rootflags=subvol=@ rw");
+    application::PreviewService preview;
+    render::LimineRenderer renderer;
+    const auto output = renderer.render(preview.build(system, {}, config::AppConfig{}));
+    assert(output.find("protocol: efi") != std::string::npos);
+    assert(output.find("path: boot():/EFI/Linux/arch-linux.efi") != std::string::npos);
+    assert(output.find("module_path:") == std::string::npos);
+}
+
+void nested_boot_files_test() {
+    using namespace limine_manager::infrastructure;
+    FakeFileSystem filesystem;
+    filesystem.add_file("/boot/kernels/vmlinuz-linux", "kernel");
+    filesystem.add_file("/boot/images/initramfs-linux.img", "initrd");
+    filesystem.add_file("/boot/firmware/intel-ucode.img", "ucode");
+    filesystem.add_file("/usr/lib/modules/7.1.3-arch1-2/pkgbase", "linux\n");
+    filesystem.add_file("/proc/cpuinfo", "vendor_id : GenuineIntel\n");
+    KernelDiscovery discovery(filesystem);
+    const auto kernels = discovery.discover("7.1.3-arch1-2");
+    assert(kernels.size() == 1);
+    assert(!kernels.front().unified_kernel_image);
+    assert(kernels.front().image == "/boot/kernels/vmlinuz-linux");
+    assert(kernels.front().initrds.size() == 2);
+}
+
 void config_loader_test() {
     using namespace limine_manager;
     const auto root = std::filesystem::temp_directory_path() / "limine-manager-config-test";
@@ -306,8 +353,13 @@ void config_loader_test() {
     assert(!loaded.value.root_menu_expanded);
     assert(loaded.value.include_kernels.size() == 2);
     assert(loaded.value.theme_name == "tokyo-night");
+    assert(loaded.value.automation_enabled);
+    assert(loaded.value.automation_snapper);
+    assert(loaded.value.automation_pacman);
+    assert(loaded.value.automation_debounce_seconds == 3);
     assert(loaded.value.limine_options.at("timeout") == "10");
     assert(loader.render(loaded).find("[theme]\nname = tokyo-night") != std::string::npos);
+    assert(loader.render(loaded).find("[automation]\nenabled = true") != std::string::npos);
     assert(loader.render(loaded).find("Source: " + path.string()) != std::string::npos);
 
     const auto invalid_theme = root / "invalid-theme.conf";
@@ -347,6 +399,64 @@ void config_schema_test() {
         rejected = true;
     }
     assert(rejected);
+
+    const auto invalid_automation = root / "invalid-automation.conf";
+    std::ofstream(invalid_automation) << "[automation]\ndebounce_seconds=3601\n";
+    bool rejected_automation = false;
+    try {
+        (void)loader.load(invalid_automation);
+    } catch (const std::runtime_error &) {
+        rejected_automation = true;
+    }
+    assert(rejected_automation);
+    std::filesystem::remove_all(root);
+}
+
+void automation_event_test() {
+    using namespace limine_manager;
+    const auto create =
+        application::parse_snapper_plugin_event({"create-snapshot-post", "/", "btrfs", "42"});
+    assert(create.action == "create-snapshot-post");
+    assert(create.extra_arguments.size() == 1);
+    assert(application::is_relevant_snapper_event(create));
+
+    const auto pre =
+        application::parse_snapper_plugin_event({"create-snapshot-pre", "/", "btrfs", "42"});
+    assert(!application::is_relevant_snapper_event(pre));
+
+    const auto home =
+        application::parse_snapper_plugin_event({"delete-snapshot-post", "/home", "btrfs", "7"});
+    assert(!application::is_relevant_snapper_event(home));
+
+    const auto ext4 =
+        application::parse_snapper_plugin_event({"modify-snapshot-post", "/", "ext4", "7"});
+    assert(!application::is_relevant_snapper_event(ext4));
+
+    const auto rollback =
+        application::parse_snapper_plugin_event({"rollback-post", "/", "btrfs", "10", "11"});
+    assert(application::is_relevant_snapper_event(rollback));
+}
+
+void refresh_request_service_test() {
+    using namespace limine_manager;
+    const auto root = std::filesystem::temp_directory_path() /
+                      ("limine-manager-refresh-request-test-" + std::to_string(::getpid()));
+    std::filesystem::remove_all(root);
+    application::RefreshRequestService service(root);
+    assert(!service.pending());
+
+    const auto first = service.request("snapper");
+    assert(first.requested);
+    assert(!first.coalesced);
+    assert(service.pending());
+
+    const auto second = service.request("pacman");
+    assert(second.requested);
+    assert(second.coalesced);
+    assert(service.pending());
+
+    service.clear_pending();
+    assert(!service.pending());
     std::filesystem::remove_all(root);
 }
 
@@ -391,7 +501,7 @@ void simulated_system_integration_test() {
                         "root=/dev/mapper/cryptroot rootflags=subvol=@ rw\n");
     filesystem.add_file("/proc/cpuinfo", "vendor_id : GenuineIntel\n");
     filesystem.add_directory("/boot");
-    filesystem.add_file("/boot/limine.conf", "timeout: 5\n");
+    filesystem.add_file("/boot/EFI/BOOT/limine.conf", "timeout: 5\n");
     filesystem.add_file("/boot/vmlinuz-linux", "kernel");
     filesystem.add_file("/boot/initramfs-linux.img", "initramfs");
     filesystem.add_file("/boot/intel-ucode.img", "microcode");
@@ -418,6 +528,7 @@ void simulated_system_integration_test() {
     assert(system.os_name == "Arch Linux");
     assert(system.kernels.size() == 1);
     assert(system.kernels.front().running);
+    assert(system.limine_config == "/boot/EFI/BOOT/limine.conf");
 
     application::ValidationService validator(filesystem);
     infrastructure::SnapperConfig snapper{"root", "/", "btrfs"};
@@ -430,6 +541,169 @@ void simulated_system_integration_test() {
     render::LimineRenderer renderer;
     const auto output = renderer.render(preview.build(system, snapshots, config::AppConfig{}));
     assert(output.find("rootflags=subvol=@snapshots/42/snapshot") != std::string::npos);
+}
+
+void automatic_unencrypted_cmdline_test() {
+    using namespace limine_manager;
+    FakeFileSystem filesystem;
+    filesystem.add_file("/etc/os-release", "PRETTY_NAME=\"Arch Linux\"\n");
+    filesystem.add_file("/proc/cpuinfo", "vendor_id : GenuineIntel\n");
+    filesystem.add_directory("/boot");
+    filesystem.add_file("/boot/limine.conf", "timeout: 5\n");
+    filesystem.add_file("/boot/vmlinuz-linux", "kernel");
+    filesystem.add_file("/boot/initramfs-linux.img", "initramfs");
+    filesystem.add_file("/boot/intel-ucode.img", "microcode");
+    filesystem.add_directory("/usr/lib/modules/7.1.3-arch1-2");
+    filesystem.add_file("/usr/lib/modules/7.1.3-arch1-2/pkgbase", "linux\n");
+    filesystem.add_directory("/.snapshots/1/snapshot");
+
+    FakeProcessRunner runner;
+    runner.respond({"uname", "-r"}, "7.1.3-arch1-2\n");
+    const auto mount = [&](const std::string &target, const std::string &field,
+                           const std::string &value) {
+        runner.respond({"findmnt", "--noheadings", "--raw", "--target", target, "--output", field},
+                       value + "\n");
+    };
+    mount("/boot", "TARGET", "/boot");
+    mount("/boot", "SOURCE", "/dev/nvme0n1p1");
+    mount("/boot", "FSTYPE", "vfat");
+    mount("/", "SOURCE", "/dev/nvme0n1p2[/@]");
+    mount("/", "FSTYPE", "btrfs");
+    mount("/", "OPTIONS", "rw,subvol=@");
+    runner.respond({"lsblk", "--noheadings", "--raw", "--output", "TYPE", "/dev/nvme0n1p2"},
+                   "part\n");
+    runner.respond({"blkid", "--match-tag", "UUID", "--output", "value", "/dev/nvme0n1p2"},
+                   "11111111-2222-3333-4444-555555555555\n");
+
+    infrastructure::SystemDetector detector(runner, filesystem);
+    const auto system = detector.detect();
+    assert(system.kernel_cmdline_generated);
+    assert(!system.root_encrypted);
+    assert(system.kernel_cmdline.value("root") ==
+           "UUID=11111111-2222-3333-4444-555555555555");
+    assert(system.kernel_cmdline.value("rootflags") == "subvol=@");
+    assert(system.kernel_cmdline.contains("rw"));
+    assert(!system.kernel_cmdline.contains("cryptdevice"));
+    assert(!system.kernel_cmdline.contains("rd.luks.name"));
+
+    application::ValidationService validator(filesystem);
+    const auto report = validator.validate(
+        system, infrastructure::SnapperConfig{"root", "/", "btrfs"},
+        {{1, "2026-07-15", "test", true}}, config::AppConfig{});
+    assert(report.valid());
+}
+
+void automatic_encrypted_cmdline_test() {
+    using namespace limine_manager;
+    const auto run_case = [](bool sd_encrypt) {
+        FakeFileSystem filesystem;
+        filesystem.add_file("/etc/os-release", "PRETTY_NAME=\"Arch Linux\"\n");
+        filesystem.add_file("/proc/cpuinfo", "vendor_id : GenuineIntel\n");
+        if (sd_encrypt)
+            filesystem.add_file("/etc/mkinitcpio.conf", "HOOKS=(base systemd autodetect sd-encrypt filesystems)\n");
+        else
+            filesystem.add_file("/etc/mkinitcpio.conf", "HOOKS=(base udev autodetect encrypt filesystems)\n");
+        filesystem.add_directory("/boot");
+        filesystem.add_file("/boot/limine.conf", "timeout: 5\n");
+        filesystem.add_file("/boot/vmlinuz-linux", "kernel");
+        filesystem.add_file("/boot/initramfs-linux.img", "initramfs");
+        filesystem.add_file("/boot/intel-ucode.img", "microcode");
+        filesystem.add_directory("/usr/lib/modules/7.1.3-arch1-2");
+        filesystem.add_file("/usr/lib/modules/7.1.3-arch1-2/pkgbase", "linux\n");
+
+        FakeProcessRunner runner;
+        runner.respond({"uname", "-r"}, "7.1.3-arch1-2\n");
+        const auto mount = [&](const std::string &target, const std::string &field,
+                               const std::string &value) {
+            runner.respond({"findmnt", "--noheadings", "--raw", "--target", target, "--output", field},
+                           value + "\n");
+        };
+        mount("/boot", "TARGET", "/boot");
+        mount("/boot", "SOURCE", "/dev/nvme0n1p1");
+        mount("/boot", "FSTYPE", "vfat");
+        mount("/", "SOURCE", "/dev/mapper/cryptroot[/@]");
+        mount("/", "FSTYPE", "btrfs");
+        mount("/", "OPTIONS", "rw,subvol=@");
+        runner.respond({"lsblk", "--noheadings", "--raw", "--output", "TYPE", "/dev/mapper/cryptroot"},
+                       "crypt\n");
+        runner.respond({"cryptsetup", "status", "cryptroot"},
+                       "/dev/mapper/cryptroot is active.\n  type: LUKS2\n  device: /dev/nvme0n1p2\n");
+        runner.respond({"blkid", "--match-tag", "UUID", "--output", "value", "/dev/mapper/cryptroot"},
+                       "bbbbbbbb-cccc-dddd-eeee-ffffffffffff\n");
+        runner.respond({"blkid", "--match-tag", "UUID", "--output", "value", "/dev/nvme0n1p2"},
+                       "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\n");
+        runner.respond({"blkid", "--match-tag", "PARTUUID", "--output", "value", "/dev/nvme0n1p2"},
+                       "11111111-2222-3333-4444-555555555555\n");
+
+        infrastructure::SystemDetector detector(runner, filesystem);
+        const auto system = detector.detect();
+        assert(system.kernel_cmdline_generated);
+        assert(system.root_encrypted);
+        assert(system.encrypted_backing_device == "/dev/nvme0n1p2");
+        assert(system.luks_uuid == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        assert(system.encrypted_backing_partuuid == "11111111-2222-3333-4444-555555555555");
+        assert(system.kernel_cmdline.value("root") == "/dev/mapper/cryptroot");
+        if (sd_encrypt) {
+            assert(system.kernel_cmdline.value("rd.luks.name") ==
+                   "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee=cryptroot");
+            assert(!system.kernel_cmdline.contains("cryptdevice"));
+        } else {
+            assert(system.kernel_cmdline.value("cryptdevice") ==
+                   "UUID=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee:cryptroot");
+            assert(!system.kernel_cmdline.contains("rd.luks.name"));
+        }
+    };
+    run_case(false);
+    run_case(true);
+}
+
+
+void unprivileged_sysfs_encrypted_discovery_test() {
+    using namespace limine_manager;
+    FakeFileSystem filesystem;
+    filesystem.add_file("/etc/os-release", "PRETTY_NAME=\"Arch Linux\"\n");
+    filesystem.add_file("/etc/kernel/cmdline",
+                        "cryptdevice=UUID=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee:cryptroot "
+                        "root=/dev/mapper/cryptroot rootflags=subvol=@ rw\n");
+    filesystem.add_file("/proc/cpuinfo", "vendor_id : GenuineIntel\n");
+    filesystem.add_file("/etc/mkinitcpio.conf", "HOOKS=(base udev encrypt filesystems)\n");
+    filesystem.add_directory("/boot");
+    filesystem.add_file("/boot/limine.conf", "timeout: 5\n");
+    filesystem.add_file("/boot/vmlinuz-linux", "kernel");
+    filesystem.add_file("/boot/initramfs-linux.img", "initramfs");
+    filesystem.add_directory("/usr/lib/modules/7.1.3-arch1-3");
+    filesystem.add_file("/usr/lib/modules/7.1.3-arch1-3/pkgbase", "linux\n");
+    filesystem.add_directory("/sys/class/block/cryptroot/slaves");
+    filesystem.add_file("/sys/class/block/cryptroot/slaves/nvme0n1p2");
+
+    FakeProcessRunner runner;
+    runner.respond({"uname", "-r"}, "7.1.3-arch1-3\n");
+    const auto mount = [&](const std::string &target, const std::string &field,
+                           const std::string &value) {
+        runner.respond({"findmnt", "--noheadings", "--raw", "--target", target, "--output", field},
+                       value + "\n");
+    };
+    mount("/boot", "TARGET", "/boot");
+    mount("/boot", "SOURCE", "/dev/nvme0n1p1");
+    mount("/boot", "FSTYPE", "vfat");
+    mount("/", "SOURCE", "/dev/mapper/cryptroot[/@]");
+    mount("/", "FSTYPE", "btrfs");
+    mount("/", "OPTIONS", "rw,subvol=@");
+    runner.respond({"lsblk", "--noheadings", "--raw", "--output", "TYPE", "/dev/mapper/cryptroot"},
+                   "crypt\n");
+    runner.respond({"cryptsetup", "status", "cryptroot"}, "Permission denied\n", 4);
+    runner.respond({"blkid", "--match-tag", "UUID", "--output", "value", "/dev/mapper/cryptroot"},
+                   "116435db-6d6d-495a-814a-0f3253207821\n");
+    runner.respond({"blkid", "--match-tag", "UUID", "--output", "value", "/dev/nvme0n1p2"},
+                   "49c8e2ce-ab7e-4314-bc1f-251374a105fe\n");
+    runner.respond({"blkid", "--match-tag", "PARTUUID", "--output", "value", "/dev/nvme0n1p2"},
+                   "f4b73def-3326-4d8c-ab8d-8ead4a2b97d1\n");
+
+    infrastructure::SystemDetector detector(runner, filesystem);
+    const auto system = detector.detect();
+    assert(system.encrypted_backing_device == "/dev/nvme0n1p2");
+    assert(system.luks_uuid == "49c8e2ce-ab7e-4314-bc1f-251374a105fe");
+    assert(system.encrypted_backing_partuuid == "f4b73def-3326-4d8c-ab8d-8ead4a2b97d1");
 }
 
 void traditional_encrypt_validation_test() {
@@ -446,6 +720,8 @@ void traditional_encrypt_validation_test() {
     system.root_fstype = "btrfs";
     system.root_subvolume = "@";
     system.root_source = "/dev/mapper/cryptroot[/@]";
+    system.root_encrypted = true;
+    system.root_mapper_name = "cryptroot";
     system.boot_mount = "/boot";
     system.boot_target = "/boot";
     system.boot_source = "/dev/nvme0n1p1";
@@ -462,6 +738,94 @@ void traditional_encrypt_validation_test() {
     const auto report =
         validator.validate(system, infrastructure::SnapperConfig{"root", "/", "btrfs"},
                            {{1, "2026-07-13", "test", true}}, config::AppConfig{});
+    assert(report.valid());
+}
+
+
+void archinstall_luks_uuid_validation_test() {
+    using namespace limine_manager;
+    FakeFileSystem filesystem;
+    filesystem.add_file("/boot/EFI/BOOT/limine.conf", "timeout: 5\n");
+    filesystem.add_file("/etc/kernel/cmdline", "cmdline\n");
+    filesystem.add_file("/boot/EFI/Linux/arch-linux.efi", "uki");
+    filesystem.add_directory("/.snapshots/1/snapshot");
+
+    infrastructure::SystemInfo system;
+    system.root_fstype = "btrfs";
+    system.root_subvolume = "@";
+    system.root_source = "/dev/mapper/root[/@]";
+    system.root_encrypted = true;
+    system.root_mapper_name = "root";
+    system.root_uuid = "bbbbbbbb-cccc-dddd-eeee-ffffffffffff";
+    system.luks_uuid = "49c8e2ce-ab7e-4314-bc1f-251374a105fe";
+    system.boot_mount = "/boot";
+    system.boot_target = "/boot";
+    system.boot_source = "/dev/nvme0n1p1";
+    system.boot_fstype = "vfat";
+    system.limine_config = "/boot/EFI/BOOT/limine.conf";
+    system.kernel_cmdline_file = "/etc/kernel/cmdline";
+    system.running_kernel_release = "7.1.3-arch1-2";
+    system.kernel_cmdline = domain::KernelCommandLine::parse(
+        "rd.luks.name=49c8e2ce-ab7e-4314-bc1f-251374a105fe=cryptroot "
+        "root=UUID=bbbbbbbb-cccc-dddd-eeee-ffffffffffff rootflags=subvol=@ rw");
+    infrastructure::KernelInstallation uki;
+    uki.package_base = "linux";
+    uki.release = "7.1.3-arch1-2";
+    uki.display_name = "Linux";
+    uki.image = "/boot/EFI/Linux/arch-linux.efi";
+    uki.running = true;
+    uki.unified_kernel_image = true;
+    system.kernels = {uki};
+
+    application::ValidationService validator(filesystem);
+    const auto report = validator.validate(
+        system, infrastructure::SnapperConfig{"root", "/", "btrfs"},
+        {{1, "2026-07-16", "archinstall", true}}, config::AppConfig{});
+    assert(report.valid());
+}
+
+
+void archinstall_partuuid_validation_test() {
+    using namespace limine_manager;
+    FakeFileSystem filesystem;
+    filesystem.add_file("/boot/EFI/BOOT/limine.conf", "timeout: 5\n");
+    filesystem.add_file("/etc/kernel/cmdline", "cmdline\n");
+    filesystem.add_file("/boot/EFI/Linux/arch-linux.efi", "uki");
+    filesystem.add_directory("/.snapshots/1/snapshot");
+
+    infrastructure::SystemInfo system;
+    system.root_fstype = "btrfs";
+    system.root_subvolume = "@";
+    system.root_source = "/dev/mapper/root[/@]";
+    system.root_encrypted = true;
+    system.root_mapper_name = "root";
+    system.root_uuid = "88e972db-24f7-47b2-a7dd-43076f272f5a";
+    system.luks_uuid = "35b65068-4baf-4adc-93cf-322948cc9cb1";
+    system.encrypted_backing_device = "/dev/vda2";
+    system.encrypted_backing_partuuid = "da5d4d02-603b-48f8-a0e7-fe49a9c9a43a";
+    system.boot_mount = "/boot";
+    system.boot_target = "/boot";
+    system.boot_source = "/dev/vda1";
+    system.boot_fstype = "vfat";
+    system.limine_config = "/boot/EFI/BOOT/limine.conf";
+    system.kernel_cmdline_file = "/etc/kernel/cmdline";
+    system.running_kernel_release = "7.1.3-arch1-3";
+    system.kernel_cmdline = domain::KernelCommandLine::parse(
+        "cryptdevice=PARTUUID=da5d4d02-603b-48f8-a0e7-fe49a9c9a43a:cryptroot "
+        "root=/dev/mapper/root zswap.enabled=0 rootflags=subvol=@ rw rootfstype=btrfs quiet splash");
+    infrastructure::KernelInstallation uki;
+    uki.package_base = "linux";
+    uki.release = "7.1.3-arch1-3";
+    uki.display_name = "Linux";
+    uki.image = "/boot/EFI/Linux/arch-linux.efi";
+    uki.running = true;
+    uki.unified_kernel_image = true;
+    system.kernels = {uki};
+
+    application::ValidationService validator(filesystem);
+    const auto report = validator.validate(
+        system, infrastructure::SnapperConfig{"root", "/", "btrfs"},
+        {{1, "2026-07-16", "archinstall", true}}, config::AppConfig{});
     assert(report.valid());
 }
 
@@ -581,7 +945,7 @@ void deterministic_render_test() {
 
 void domain_invariant_test() {
     using namespace limine_manager::domain;
-    auto entry = MenuNode::linux_entry("Linux", "test", {"kernel", {}, ""});
+    auto entry = MenuNode::linux_entry("Linux", "test", {"linux", "kernel", {}, ""});
     bool threw = false;
     try {
         entry.add_child(MenuNode::directory("invalid"));
@@ -670,6 +1034,103 @@ void rollback_planner_test() {
     assert(!conflicted.eligible);
 }
 
+
+void status_service_test() {
+    using namespace limine_manager;
+    model::SystemModel model;
+    model.system.os_name = "Arch Linux";
+    model.system.root_fstype = "btrfs";
+    model.system.root_source = "/dev/mapper/root[/@]";
+    model.system.root_subvolume = "@";
+    model.system.root_encrypted = true;
+    model.system.root_mapper_name = "root";
+    model.system.encrypted_backing_device = "/dev/vda2";
+    model.system.encrypted_backing_partuuid = "partuuid";
+    model.system.luks_uuid = "luks-uuid";
+    model.system.boot_mount = "/boot";
+    model.system.boot_source = "/dev/vda1";
+    model.system.boot_fstype = "vfat";
+    model.system.limine_config = "/boot/EFI/BOOT/limine.conf";
+    model.system.kernel_cmdline_file = "/etc/kernel/cmdline";
+    model.system.kernels.push_back({"linux", "7.1.3", "Linux", "/boot/EFI/Linux/arch-linux.efi", {}, true, true});
+    model.snapper = {"root", "/", "btrfs"};
+    model.snapshots.available = {{1, "2026-07-16", "test", true}, {2, "2026-07-15", "older", true}};
+    model.snapshots.selected = {{1, "2026-07-16", "test", true}};
+    model.snapshots.maximum = 1;
+
+    domain::ValidationReport validation;
+    validation.info("system", "valid");
+    application::ChangePlan plan{application::ChangeKind::unchanged,
+                                 model.system.limine_config, {}, {}};
+    config::AppConfig config;
+    config.theme_name = "catppuccin";
+    application::StatusService service;
+    const auto status = service.build(model, validation, plan, {}, config);
+    assert(status.healthy);
+    assert(!status.changes_pending);
+    assert(status.text.find("System health: healthy") != std::string::npos);
+    assert(status.text.find("arch-linux.efi") != std::string::npos);
+    assert(status.text.find("Available snapshots: 2") != std::string::npos);
+    assert(status.text.find("Menu snapshots: 1") != std::string::npos);
+    assert(status.text.find("Maximum configured: 1") != std::string::npos);
+    assert(status.text.find("Theme: catppuccin") != std::string::npos);
+    assert(status.text.find("Mount: /boot") != std::string::npos);
+    assert(status.text.find("Root device: /dev/mapper/root") != std::string::npos);
+    assert(status.text.find("Configuration: synchronized") != std::string::npos);
+
+    auto incomplete = model;
+    incomplete.system.luks_uuid.clear();
+    incomplete.system.encrypted_backing_device.clear();
+    const auto degraded = service.build(incomplete, validation, plan, {}, config);
+    assert(degraded.healthy);
+    assert(degraded.degraded);
+    assert(degraded.text.find("System health: degraded") != std::string::npos);
+    assert(degraded.text.find("encryption.discovery") != std::string::npos);
+
+    auto limited = model;
+    limited.snapshots.available.resize(150, {1, "2026-07-16", "test", true});
+    limited.snapshots.selected.resize(10, {1, "2026-07-16", "test", true});
+    limited.snapshots.maximum = 10;
+    const auto limited_status = service.build(limited, validation, plan, {}, config);
+    assert(!limited_status.degraded);
+    assert(limited_status.text.find("Available snapshots: 150") != std::string::npos);
+    assert(limited_status.text.find("Menu snapshots: 10") != std::string::npos);
+    assert(limited_status.text.find("Large snapshot menu") == std::string::npos);
+
+    validation.error("kernel", "broken");
+    const auto failed = service.build(model, validation, plan, {}, config);
+    assert(!failed.healthy);
+    assert(failed.text.find("Problems") != std::string::npos);
+    assert(failed.text.find("broken") != std::string::npos);
+}
+
+void secure_boot_render_test() {
+    using namespace limine_manager;
+    infrastructure::SystemInfo system;
+    system.boot_mount = "/boot";
+    system.kernel_cmdline = domain::KernelCommandLine::parse("root=UUID=test rw");
+    infrastructure::KernelInstallation kernel;
+    kernel.package_base = "linux";
+    kernel.display_name = "Linux";
+    kernel.image = "/boot/vmlinuz-linux";
+    kernel.initrds = {"/boot/intel-ucode.img", "/boot/initramfs-linux.img"};
+    system.kernels = {kernel};
+    system.secure_boot.enabled = true;
+    system.secure_boot.resource_hashes[kernel.image] = std::string(128, 'a');
+    system.secure_boot.resource_hashes[kernel.initrds[0]] = std::string(128, 'b');
+    system.secure_boot.resource_hashes[kernel.initrds[1]] = std::string(128, 'c');
+
+    application::PreviewService preview;
+    render::LimineRenderer renderer;
+    const auto output = renderer.render(preview.build(system, {}, config::AppConfig{}));
+    assert(output.find("path: boot():/vmlinuz-linux#" + std::string(128, 'a')) !=
+           std::string::npos);
+    assert(output.find("module_path: boot():/intel-ucode.img#" + std::string(128, 'b')) !=
+           std::string::npos);
+    assert(output.find("module_path: boot():/initramfs-linux.img#" + std::string(128, 'c')) !=
+           std::string::npos);
+}
+
 void rollback_service_test() {
     using namespace limine_manager;
     FakeBtrfsClient btrfs;
@@ -710,21 +1171,32 @@ void rollback_service_test() {
 } // namespace
 
 int main() {
+    secure_boot_render_test();
     menu_tree_test();
     multiple_kernel_test();
     cmdline_model_test();
     kernel_discovery_test();
+    uki_discovery_and_render_test();
+    nested_boot_files_test();
     config_loader_test();
     config_schema_test();
+    automation_event_test();
+    refresh_request_service_test();
     configurable_preview_test();
     simulated_system_integration_test();
+    automatic_unencrypted_cmdline_test();
+    automatic_encrypted_cmdline_test();
+    unprivileged_sysfs_encrypted_discovery_test();
     traditional_encrypt_validation_test();
+    archinstall_luks_uuid_validation_test();
+    archinstall_partuuid_validation_test();
     change_planner_test();
     apply_service_test();
     backup_service_test();
     deterministic_render_test();
     domain_invariant_test();
     validation_report_test();
+    status_service_test();
     fixture_config_test();
     rollback_planner_test();
     rollback_service_test();

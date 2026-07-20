@@ -1,0 +1,16 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = linux
+Target = linux-lts
+Target = linux-zen
+Target = linux-hardened
+Target = intel-ucode
+Target = amd-ucode
+
+[Action]
+Description = Regenerating Limine menu...
+When = PostTransaction
+Exec = /usr/bin/limine-manager-update

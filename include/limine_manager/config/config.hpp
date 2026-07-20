@@ -32,6 +32,16 @@ struct AppConfig {
 
     std::string theme_name{"none"};
 
+    bool automation_enabled{true};
+    bool automation_snapper{true};
+    bool automation_pacman{true};
+    std::size_t automation_debounce_seconds{3};
+    std::filesystem::path automation_runtime_directory{"/run/limine-manager"};
+
+    bool secure_boot_protect_config{true};
+    bool secure_boot_automatic_apply{false};
+    std::filesystem::path secure_boot_efi_executable;
+
     std::map<std::string, std::string> limine_options{{"remember_last_entry", "yes"},
                                                       {"timeout", "5"}};
 };

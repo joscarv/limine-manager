@@ -1,0 +1,11 @@
+[Unit]
+Description=Debounced limine-manager automatic refresh
+Documentation=man:limine-manager(8)
+
+[Timer]
+OnActiveSec=3s
+AccuracySec=1s
+Unit=limine-manager-refresh.service
+
+[Install]
+WantedBy=timers.target

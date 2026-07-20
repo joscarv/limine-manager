@@ -1,5 +1,6 @@
 #include "limine_manager/application/preview_service.hpp"
 #include "limine_manager/config/theme.hpp"
+#include "limine_manager/application/snapshot_selector.hpp"
 
 #include <algorithm>
 #include <unordered_map>
@@ -7,8 +8,21 @@
 
 namespace limine_manager::application {
 namespace {
-std::string limine_path(const std::filesystem::path &absolute_boot_path) {
-    return "boot():/" + absolute_boot_path.filename().string();
+std::string limine_path(const std::filesystem::path &boot_mount,
+                        const std::filesystem::path &absolute_boot_path,
+                        const infrastructure::SystemInfo *system = nullptr,
+                        bool hash_resource = false) {
+    std::error_code ec;
+    auto relative = std::filesystem::relative(absolute_boot_path, boot_mount, ec);
+    if (ec || relative.empty() || relative.native().starts_with(".."))
+        relative = absolute_boot_path.filename();
+    auto result = "boot():/" + relative.generic_string();
+    if (hash_resource && system && system->secure_boot.enabled) {
+        const auto it = system->secure_boot.resource_hashes.find(absolute_boot_path);
+        if (it != system->secure_boot.resource_hashes.end() && !it->second.empty())
+            result += "#" + it->second;
+    }
+    return result;
 }
 
 std::string snapshot_cmdline(const domain::KernelCommandLine &cmdline,
@@ -25,11 +39,12 @@ std::string display_date(std::string date) {
     return date;
 }
 
-std::vector<std::string> modules_for(const infrastructure::KernelInstallation &kernel) {
+std::vector<std::string> modules_for(const infrastructure::KernelInstallation &kernel,
+                                     const infrastructure::SystemInfo &system) {
     std::vector<std::string> modules;
     modules.reserve(kernel.initrds.size());
     for (const auto &initrd : kernel.initrds)
-        modules.push_back(limine_path(initrd));
+        modules.push_back(limine_path(system.boot_mount, initrd, &system, true));
     return modules;
 }
 
@@ -92,20 +107,15 @@ PreviewService::build(const infrastructure::SystemInfo &system,
     for (const auto &kernel : kernels) {
         root.add_child(domain::MenuNode::linux_entry(
             kernel.display_name, kernel_comment(kernel),
-            {limine_path(kernel.image), modules_for(kernel), system.kernel_cmdline.render()}));
+            {kernel.unified_kernel_image ? "efi" : "linux",
+             limine_path(system.boot_mount, kernel.image, &system, !kernel.unified_kernel_image),
+             modules_for(kernel, system), system.kernel_cmdline.render()}));
     }
 
     auto snapshot_dir =
         domain::MenuNode::directory(config.snapshots_menu_title, config.snapshots_menu_expanded);
-    auto ordered = snapshots;
-    std::sort(ordered.begin(), ordered.end(),
-              [](const auto &lhs, const auto &rhs) { return lhs.number > rhs.number; });
-    std::size_t emitted = 0;
-    for (const auto &snapshot : ordered) {
-        if (!snapshot.read_only && !config.include_read_write_snapshots)
-            continue;
-        if (config.max_snapshots != 0 && emitted >= config.max_snapshots)
-            break;
+    const auto selected_snapshots = select_menu_snapshots(snapshots, config);
+    for (const auto &snapshot : selected_snapshots) {
         auto snapshot_node = domain::MenuNode::directory(display_date(snapshot.date), false);
         const auto description = snapshot.description.empty()
                                      ? "Snapper snapshot #" + std::to_string(snapshot.number)
@@ -113,12 +123,13 @@ PreviewService::build(const infrastructure::SystemInfo &system,
         for (const auto &kernel : kernels) {
             snapshot_node.add_child(domain::MenuNode::linux_entry(
                 kernel.display_name, description + " — " + kernel_comment(kernel),
-                {limine_path(kernel.image), modules_for(kernel),
+                {kernel.unified_kernel_image ? "efi" : "linux",
+                 limine_path(system.boot_mount, kernel.image, &system, !kernel.unified_kernel_image),
+                 modules_for(kernel, system),
                  snapshot_cmdline(system.kernel_cmdline, config.snapshots_subvolume,
                                   snapshot.number)}));
         }
         snapshot_dir.add_child(std::move(snapshot_node));
-        ++emitted;
     }
     root.add_child(std::move(snapshot_dir));
     document.roots.push_back(std::move(root));

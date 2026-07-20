@@ -89,6 +89,8 @@ void assign(AppConfig &config, const std::string &section, const std::string &ke
             config.system.modules_root = value;
         else if (key == "cpuinfo")
             config.system.cpuinfo = value;
+        else if (key == "mkinitcpio_config")
+            config.system.mkinitcpio_config = value;
         else
             throw std::runtime_error("Unknown key [system]." + key + " at line " +
                                      std::to_string(line));
@@ -140,6 +142,31 @@ void assign(AppConfig &config, const std::string &section, const std::string &ke
         else
             throw std::runtime_error("Unknown key [theme]." + key + " at line " +
                                      std::to_string(line));
+    } else if (section == "automation") {
+        if (key == "enabled")
+            config.automation_enabled = parse_bool(value, line);
+        else if (key == "snapper")
+            config.automation_snapper = parse_bool(value, line);
+        else if (key == "pacman")
+            config.automation_pacman = parse_bool(value, line);
+        else if (key == "debounce_seconds")
+            config.automation_debounce_seconds = parse_size(value, line);
+        else if (key == "runtime_directory")
+            config.automation_runtime_directory = value;
+        else
+            throw std::runtime_error("Unknown key [automation]." + key + " at line " +
+                                     std::to_string(line));
+    } else if (section == "secure_boot") {
+        if (key == "protect_config")
+            config.secure_boot_protect_config = parse_bool(value, line);
+        else if (key == "automatic_apply")
+            config.secure_boot_automatic_apply = parse_bool(value, line);
+        else if (key == "efi_executable")
+            config.secure_boot_efi_executable = value == "auto" ? std::filesystem::path{} : std::filesystem::path(value),
+            config.system.limine_efi_executable = config.secure_boot_efi_executable;
+        else
+            throw std::runtime_error("Unknown key [secure_boot]." + key + " at line " +
+                                     std::to_string(line));
     } else if (section == "limine") {
         config.limine_options[key] = value;
     } else {
@@ -171,6 +198,10 @@ void validate_config(const AppConfig &config) {
         throw std::runtime_error("Unknown theme '" + config.theme_name +
                                  "'. Supported themes: none, tokyo-night, catppuccin, nord, "
                                  "dracula, gruvbox");
+    if (config.automation_debounce_seconds > 3600)
+        throw std::runtime_error("automation.debounce_seconds must be <= 3600");
+    if (config.automation_runtime_directory.empty())
+        throw std::runtime_error("automation.runtime_directory cannot be empty");
     for (const auto &item : config.include_kernels) {
         if (std::find(config.exclude_kernels.begin(), config.exclude_kernels.end(), item) !=
             config.exclude_kernels.end())
@@ -258,6 +289,16 @@ std::string ConfigLoader::render(const LoadedConfig &loaded) const {
         << "order = " << join(c.kernel_order) << "\n\n";
     out << "[theme]\n"
         << "name = " << c.theme_name << "\n\n";
+    out << "[automation]\n"
+        << "enabled = " << (c.automation_enabled ? "true" : "false") << '\n'
+        << "snapper = " << (c.automation_snapper ? "true" : "false") << '\n'
+        << "pacman = " << (c.automation_pacman ? "true" : "false") << '\n'
+        << "debounce_seconds = " << c.automation_debounce_seconds << '\n'
+        << "runtime_directory = " << c.automation_runtime_directory.string() << "\n\n";
+    out << "[secure_boot]\n"
+        << "protect_config = " << (c.secure_boot_protect_config ? "true" : "false") << '\n'
+        << "automatic_apply = " << (c.secure_boot_automatic_apply ? "true" : "false") << '\n'
+        << "efi_executable = " << (c.secure_boot_efi_executable.empty() ? "auto" : c.secure_boot_efi_executable.string()) << "\n\n";
     out << "[limine]\n";
     for (const auto &[key, value] : c.limine_options)
         out << key << " = " << value << '\n';

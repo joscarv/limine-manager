@@ -9,6 +9,7 @@ namespace limine_manager::domain {
 enum class NodeKind { directory, linux_entry };
 
 struct LinuxBootSpec {
+    std::string protocol{"linux"};
     std::string kernel_path;
     std::vector<std::string> module_paths;
     std::string cmdline;

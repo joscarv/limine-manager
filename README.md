@@ -4,16 +4,20 @@
 
 ## Features
 
+- Secure Boot protected configuration with BLAKE2b resource hashes, Limine config enrollment, and `sbctl` re-signing.
+
 - Detects installed Arch kernels and maps each image to its real kernel release.
-- Parses `/etc/kernel/cmdline` without shell evaluation.
+- Uses a non-empty `/etc/kernel/cmdline` as an explicit override; otherwise generates the root command line automatically.
 - Reads Snapper configuration and snapshots through stable CSV output.
 - Builds a hierarchical Limine menu for the live system and bootable snapshots.
 - Includes built-in clean visual themes such as Tokyo Night, Catppuccin, Nord, Dracula and Gruvbox.
-- Validates the boot mount, Btrfs subvolume, encrypted root mapping, kernel files and snapshot paths.
+- Detects encrypted and unencrypted Btrfs roots, filesystem/LUKS UUIDs, and the `encrypt` or `sd-encrypt` mkinitcpio style.
+- Validates the boot mount, Btrfs subvolume, root mapping, kernel files and snapshot paths.
 - Provides preview, status, plan, unified diff and dry-run workflows.
 - Applies changes with locking, synchronized backups, same-filesystem temporary files, atomic rename, verification and rollback.
 - Lists, restores and prunes managed backups.
 - Inspects and executes guarded Btrfs rollback from a currently booted Snapper root snapshot.
+- Provides automatic refresh orchestration through a lightweight Snapper plugin, systemd timer/service, and pacman event helper.
 - Includes an opt-in pacman hook, man page, CI workflows and an Arch `PKGBUILD` template.
 
 ## Requirements
@@ -92,7 +96,7 @@ cmake --build build
 sudo cmake --install build
 ```
 
-Installed files include the binary, update helper, example configuration, optional pacman hook, release helper and `limine-manager(8)` man page.
+Installed files include the binary, update helper, Snapper plugin adapter, systemd refresh units, example configuration, optional pacman hook, release helper and `limine-manager(8)` man page.
 
 ## CLI
 
@@ -109,6 +113,8 @@ limine-manager plan
 limine-manager diff
 limine-manager dry-run
 sudo limine-manager apply
+sudo limine-manager refresh
+limine-manager automation-status
 limine-manager rollback-status
 limine-manager rollback-plan
 sudo limine-manager rollback
@@ -126,6 +132,30 @@ limine-manager --verbose --log-format json status
 ```
 
 JSON diagnostics are newline-delimited and written to standard error. Command output remains on standard output.
+
+## Automatic refresh
+
+Version 1.2.0 adds a centralized refresh path for automation:
+
+```bash
+sudo limine-manager refresh
+```
+
+`refresh` validates the detected system, renders the desired Limine configuration, builds a `ChangePlan`, skips writes when unchanged, and otherwise uses the existing `ApplyService` path.
+
+Snapper and pacman integrations do not generate or write `limine.conf` directly. They call:
+
+```bash
+limine-manager request-refresh <source>
+```
+
+which records `/run/limine-manager/refresh.pending` and restarts `limine-manager-refresh.timer` for debouncing. The timer runs `limine-manager-refresh.service`, which executes `limine-manager refresh`.
+
+Inspect automation state with:
+
+```bash
+limine-manager automation-status
+```
 
 ## Snapshot rollback
 
@@ -194,7 +224,7 @@ sudo install -Dm644 \
   /etc/pacman.d/hooks/90-limine-manager.hook
 ```
 
-The helper validates the system before invoking `apply`.
+In version 1.2.0 the helper requests the same centralized asynchronous refresh used by the Snapper integration. Validation and apply happen later inside `limine-manager refresh`.
 
 ## Reproducible source archive
 
@@ -221,3 +251,29 @@ See `CONTRIBUTING.md` for the contributor verification workflow.
 ## License
 
 MIT
+
+## Secure Boot migration
+
+Version 1.5.0 detects Secure Boot and fails closed when protected generation cannot be completed.
+The package installation itself does not modify `/boot`. For the first migration, keep:
+
+Requirements
+
+```text
+- sbctl
+- sbsigntools
+- limine >= 12.5.1
+```
+
+Config Example:
+
+```ini
+[secure_boot]
+protect_config = true
+automatic_apply = true
+efi_executable = auto
+```
+
+Run `validate`, `preview`, and a manual `apply`, then reboot-test the system. Only after a successful
+boot set `automatic_apply = true` so Snapper and Pacman refresh events may perform the full protected
+transaction automatically.

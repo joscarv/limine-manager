@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -u
+
+# Snapper plugins must stay lightweight and must not call snapper recursively.
+# The C++ command filters event relevance and schedules the asynchronous refresh.
+/usr/bin/limine-manager request-refresh snapper "$@" || true

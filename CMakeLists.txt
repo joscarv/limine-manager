@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(limine-manager VERSION 1.1.0 LANGUAGES CXX)
+project(limine-manager VERSION 1.5.0 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(CTest)
@@ -44,12 +44,17 @@ if(LIMINE_MANAGER_ENABLE_CLANG_TIDY)
 endif()
 
 add_library(limine_manager_core
+    src/application/discovery_service.cpp
     src/application/preview_service.cpp
+    src/application/status_service.cpp
     src/application/change_planner.cpp
     src/application/apply_service.cpp
+    src/application/secure_boot_apply_service.cpp
+    src/application/automation.cpp
     src/application/backup_service.cpp
     src/application/rollback_planner.cpp
     src/application/rollback_service.cpp
+    src/application/refresh_service.cpp
     src/application/validation_service.cpp
     src/domain/kernel_cmdline.cpp
     src/domain/menu.cpp
@@ -77,8 +82,10 @@ limine_manager_apply_quality(limine-manager)
 install(TARGETS limine-manager RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES config/limine-manager.conf.example DESTINATION ${CMAKE_INSTALL_DATADIR}/limine-manager)
 install(PROGRAMS scripts/limine-manager-update DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(PROGRAMS scripts/90-limine-manager-snapper DESTINATION ${CMAKE_INSTALL_LIBDIR}/snapper/plugins RENAME 90-limine-manager)
 install(PROGRAMS scripts/create-release-tarball DESTINATION ${CMAKE_INSTALL_DATADIR}/limine-manager/tools)
 install(FILES packaging/90-limine-manager.hook.example DESTINATION ${CMAKE_INSTALL_DATADIR}/limine-manager/hooks)
+install(FILES systemd/limine-manager-refresh.service systemd/limine-manager-refresh.timer DESTINATION ${CMAKE_INSTALL_LIBDIR}/systemd/system)
 install(FILES docs/limine-manager.8 DESTINATION ${CMAKE_INSTALL_MANDIR}/man8)
 install(FILES completions/limine-manager.bash DESTINATION ${CMAKE_INSTALL_DATADIR}/bash-completion/completions RENAME limine-manager)
 install(FILES completions/_limine-manager DESTINATION ${CMAKE_INSTALL_DATADIR}/zsh/site-functions)

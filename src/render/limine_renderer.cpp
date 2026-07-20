@@ -14,7 +14,7 @@ void render_node(std::ostringstream &out, const domain::MenuNode &node, std::siz
     if (node.kind == domain::NodeKind::linux_entry) {
         if (!node.boot)
             throw std::logic_error("Linux entry has no boot specification");
-        out << "    protocol: linux\n";
+        out << "    protocol: " << node.boot->protocol << '\n';
         out << "    path: " << node.boot->kernel_path << '\n';
         for (const auto &module : node.boot->module_paths)
             out << "    module_path: " << module << '\n';

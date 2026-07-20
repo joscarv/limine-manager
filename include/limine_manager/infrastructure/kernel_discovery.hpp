@@ -14,6 +14,7 @@ struct KernelInstallation {
     std::string display_name;
     std::filesystem::path image;
     std::vector<std::filesystem::path> initrds;
+    bool unified_kernel_image{false};
     bool running{false};
 };
 
