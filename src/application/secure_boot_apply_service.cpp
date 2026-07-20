@@ -39,7 +39,7 @@ ApplyResult SecureBootApplyService::apply(const ChangePlan &plan,
     if (!plan.has_changes())
         return {false, plan.target, {}};
     if (!system.secure_boot.enabled || !config.secure_boot_protect_config)
-        return ApplyService{}.apply(plan);
+        return ApplyService{config.automation_runtime_directory}.apply(plan);
     if (system.secure_boot.efi_executable.empty())
         throw std::runtime_error("Secure Boot is enabled but the active Limine EFI executable is unknown");
 
@@ -48,7 +48,7 @@ ApplyResult SecureBootApplyService::apply(const ChangePlan &plan,
     std::filesystem::copy_file(efi, efi_backup, std::filesystem::copy_options::none);
     ApplyResult result;
     try {
-        result = ApplyService{}.apply(plan);
+        result = ApplyService{config.automation_runtime_directory}.apply(plan);
         const auto digest = hash_file(runner_, plan.target);
         auto command = runner_.run({"sbattach", "--remove", efi.string()});
         if (command.exit_code != 0)
