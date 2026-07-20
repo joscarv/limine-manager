@@ -66,6 +66,7 @@ add_library(limine_manager_core
     src/infrastructure/btrfs_client.cpp
     src/infrastructure/kernel_discovery.cpp
     src/infrastructure/process.cpp
+    src/infrastructure/secure_boot_tools.cpp
     src/infrastructure/system_detector.cpp
     src/infrastructure/snapper_client.cpp
     src/render/limine_renderer.cpp
