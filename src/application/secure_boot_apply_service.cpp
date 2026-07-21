@@ -3,11 +3,21 @@
 #include "limine_manager/application/secure_boot_transaction.hpp"
 
 #include <exception>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
 namespace limine_manager::application {
 namespace {
+
+thread_local std::optional<testing::SecureBootApplyFailurePoint> injected_failure;
+
+void maybe_fail(testing::SecureBootApplyFailurePoint point) {
+    if (!injected_failure.has_value() || *injected_failure != point)
+        return;
+    injected_failure.reset();
+    throw std::runtime_error("injected Secure Boot apply failure");
+}
 
 std::string exception_message(const std::exception_ptr &error) {
     try {
@@ -20,6 +30,18 @@ std::string exception_message(const std::exception_ptr &error) {
 }
 
 } // namespace
+
+namespace testing {
+
+void inject_failure_once(SecureBootApplyFailurePoint point) noexcept {
+    injected_failure = point;
+}
+
+void clear_failure_injection() noexcept {
+    injected_failure.reset();
+}
+
+} // namespace testing
 
 ApplyResult SecureBootApplyService::apply(const ChangePlan &plan,
                                            const infrastructure::SystemInfo &system,
@@ -37,9 +59,14 @@ ApplyResult SecureBootApplyService::apply(const ChangePlan &plan,
     try {
         auto result = ApplyService{config.automation_runtime_directory}.apply(plan);
         transaction.record_apply(result);
+        maybe_fail(testing::SecureBootApplyFailurePoint::after_config_apply);
 
         const auto digest = hasher_.digest(plan.target);
+        maybe_fail(testing::SecureBootApplyFailurePoint::after_digest);
+
         (void)tools_.update_limine_image(transaction.efi_image(), digest);
+        maybe_fail(testing::SecureBootApplyFailurePoint::after_efi_update);
+        maybe_fail(testing::SecureBootApplyFailurePoint::before_commit);
 
         transaction.commit();
         return result;
