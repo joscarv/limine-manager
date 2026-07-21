@@ -1,20 +1,37 @@
 #include "limine_manager/application/secure_boot_transaction.hpp"
 #include "limine_manager/infrastructure/secure_file_ops.hpp"
 
+#include <exception>
 #include <stdexcept>
 #include <string>
 #include <utility>
 
 namespace limine_manager::application {
 
-SecureBootTransaction::SecureBootTransaction(std::filesystem::path efi_image)
-    : efi_transaction_(std::move(efi_image)) {}
+SecureBootTransaction::SecureBootTransaction(
+    std::filesystem::path efi_image,
+    infrastructure::RollbackErrorReporter error_reporter)
+    : error_reporter_(std::move(error_reporter)),
+      efi_transaction_(std::move(efi_image), error_reporter_) {}
 
-SecureBootTransaction::~SecureBootTransaction() {
+SecureBootTransaction::~SecureBootTransaction() noexcept {
     if (committed_ || !rollback_pending())
         return;
     try {
         rollback();
+    } catch (const std::exception &error) {
+        report_destructor_error(std::string("Secure Boot rollback failed during destruction: ") +
+                                error.what());
+    } catch (...) {
+        report_destructor_error("Secure Boot rollback failed during destruction: unknown error");
+    }
+}
+
+void SecureBootTransaction::report_destructor_error(std::string_view message) const noexcept {
+    if (!error_reporter_)
+        return;
+    try {
+        error_reporter_(message);
     } catch (...) {
     }
 }
