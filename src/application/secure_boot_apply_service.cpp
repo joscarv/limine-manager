@@ -1,11 +1,25 @@
 #include "limine_manager/application/secure_boot_apply_service.hpp"
 
-#include "limine_manager/infrastructure/efi_image_transaction.hpp"
+#include "limine_manager/application/secure_boot_transaction.hpp"
 
-#include <filesystem>
+#include <exception>
 #include <stdexcept>
+#include <string>
 
 namespace limine_manager::application {
+namespace {
+
+std::string exception_message(const std::exception_ptr &error) {
+    try {
+        std::rethrow_exception(error);
+    } catch (const std::exception &exception) {
+        return exception.what();
+    } catch (...) {
+        return "unknown error";
+    }
+}
+
+} // namespace
 
 ApplyResult SecureBootApplyService::apply(const ChangePlan &plan,
                                            const infrastructure::SystemInfo &system,
@@ -18,29 +32,27 @@ ApplyResult SecureBootApplyService::apply(const ChangePlan &plan,
         throw std::runtime_error(
             "Secure Boot is enabled but the active Limine EFI executable is unknown");
 
-    infrastructure::EfiImageTransaction efi_transaction{
-        system.secure_boot.efi_executable};
-    ApplyResult result;
+    SecureBootTransaction transaction{system.secure_boot.efi_executable};
 
     try {
-        result = ApplyService{config.automation_runtime_directory}.apply(plan);
+        auto result = ApplyService{config.automation_runtime_directory}.apply(plan);
+        transaction.record_apply(result);
+
         const auto digest = hasher_.digest(plan.target);
-        (void)tools_.update_limine_image(efi_transaction.image(), digest);
-        efi_transaction.commit();
+        (void)tools_.update_limine_image(transaction.efi_image(), digest);
+
+        transaction.commit();
         return result;
     } catch (...) {
-        efi_transaction.rollback();
-
-        if (!result.backup.empty()) {
-            std::error_code ec;
-            const bool restored = std::filesystem::copy_file(
-                result.backup, plan.target,
-                std::filesystem::copy_options::overwrite_existing, ec);
-            if (!restored || ec)
-                throw std::runtime_error("failed to restore Limine configuration " +
-                                         plan.target.string() + ": " + ec.message());
+        const auto original_error = std::current_exception();
+        try {
+            transaction.rollback();
+        } catch (const std::exception &rollback_error) {
+            throw std::runtime_error(exception_message(original_error) +
+                                     "; automatic rollback also failed: " +
+                                     rollback_error.what());
         }
-        throw;
+        std::rethrow_exception(original_error);
     }
 }
 
