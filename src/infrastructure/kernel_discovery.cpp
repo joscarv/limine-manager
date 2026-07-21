@@ -22,7 +22,7 @@ std::string title_for(std::string_view pkgbase) {
         return "Linux Zen";
     if (pkgbase == "linux-hardened")
         return "Linux Hardened";
-    std::string title{"Linux"};
+    std::string title {"Linux"};
     std::string suffix(pkgbase);
     if (suffix.rfind("linux-", 0) == 0)
         suffix.erase(0, 6);
@@ -113,13 +113,13 @@ std::vector<KernelInstallation> KernelDiscovery::discover(std::string_view runni
     std::vector<KernelInstallation> kernels;
     for (const auto &path : boot_files) {
         const auto filename = path.filename().string();
-        constexpr std::string_view prefix{"vmlinuz-"};
+        constexpr std::string_view prefix {"vmlinuz-"};
         if (filename.rfind(prefix, 0) != 0 || filename.size() == prefix.size())
             continue;
         const auto pkgbase = filename.substr(prefix.size());
         KernelInstallation kernel;
         kernel.package_base = pkgbase;
-        kernel.release = releases.contains(pkgbase) ? releases.at(pkgbase) : std::string{};
+        kernel.release = releases.contains(pkgbase) ? releases.at(pkgbase) : std::string {};
         kernel.display_name = title_for(pkgbase);
         kernel.image = path;
         kernel.initrds = microcodes;

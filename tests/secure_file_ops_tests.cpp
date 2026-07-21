@@ -51,7 +51,7 @@ void atomic_restore_preserves_content_and_mode_test() {
 
     atomic_restore_file(backup, target, "configuration backup", "configuration rollback target");
 
-    struct stat metadata{};
+    struct stat metadata {};
     assert(::stat(target.c_str(), &metadata) == 0);
     assert(read_text(target) == "original\n");
     assert((metadata.st_mode & 0777) == 0640);

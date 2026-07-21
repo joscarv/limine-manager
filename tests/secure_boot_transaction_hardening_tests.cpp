@@ -23,7 +23,7 @@ void write_text(const std::filesystem::path &path, const std::string &content) {
 }
 
 mode_t mode_of(const std::filesystem::path &path) {
-    struct stat metadata{};
+    struct stat metadata {};
     const int status = ::stat(path.c_str(), &metadata);
     assert(status == 0);
     return metadata.st_mode & 07777;

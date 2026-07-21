@@ -28,7 +28,7 @@ std::filesystem::path test_root(const std::string &name) {
 }
 
 mode_t file_mode(const std::filesystem::path &path) {
-    struct stat metadata{};
+    struct stat metadata {};
     assert(::stat(path.c_str(), &metadata) == 0);
     return metadata.st_mode & 07777;
 }

@@ -43,7 +43,7 @@ bool same_uuid(std::string_view left, std::string_view right) {
 enum class DeviceReferenceKind { uuid, partuuid, path, unknown };
 
 struct DeviceReference {
-    DeviceReferenceKind kind{DeviceReferenceKind::unknown};
+    DeviceReferenceKind kind {DeviceReferenceKind::unknown};
     std::string value;
 };
 
@@ -53,8 +53,8 @@ struct EncryptionMapping {
 };
 
 DeviceReference parse_device_reference(std::string_view value) {
-    constexpr std::string_view uuid_prefix{"UUID="};
-    constexpr std::string_view partuuid_prefix{"PARTUUID="};
+    constexpr std::string_view uuid_prefix {"UUID="};
+    constexpr std::string_view partuuid_prefix {"PARTUUID="};
     if (value.starts_with(uuid_prefix))
         return {DeviceReferenceKind::uuid, std::string(value.substr(uuid_prefix.size()))};
     if (value.starts_with(partuuid_prefix))
@@ -75,7 +75,7 @@ std::optional<EncryptionMapping> parse_cryptdevice(std::string_view value) {
     auto mapper = std::string(value.substr(separator + 1, mapper_end - separator - 1));
     if (mapper.empty())
         return std::nullopt;
-    return EncryptionMapping{std::move(source), std::move(mapper)};
+    return EncryptionMapping {std::move(source), std::move(mapper)};
 }
 
 std::optional<EncryptionMapping> parse_rd_luks_name(std::string_view value) {
@@ -83,10 +83,10 @@ std::optional<EncryptionMapping> parse_rd_luks_name(std::string_view value) {
     const auto uuid = separator == std::string_view::npos ? value : value.substr(0, separator);
     if (!valid_uuid(uuid))
         return std::nullopt;
-    return EncryptionMapping{{DeviceReferenceKind::uuid, std::string(uuid)},
-                             separator == std::string_view::npos
-                                 ? std::string{}
-                                 : std::string(value.substr(separator + 1))};
+    return EncryptionMapping {{DeviceReferenceKind::uuid, std::string(uuid)},
+                              separator == std::string_view::npos
+                                  ? std::string {}
+                                  : std::string(value.substr(separator + 1))};
 }
 
 bool same_device_path(const infrastructure::FileSystem &filesystem, std::string_view left,
@@ -258,7 +258,7 @@ ValidationService::validate(const infrastructure::SystemInfo &system,
 
     const auto mounted_root_source = normalize_mount_source(system.root_source);
     const auto root = system.kernel_cmdline.value("root");
-    const auto uuid_root = system.root_uuid.empty() ? std::string{} : "UUID=" + system.root_uuid;
+    const auto uuid_root = system.root_uuid.empty() ? std::string {} : "UUID=" + system.root_uuid;
     if (!root)
         report.error("kernel.root", "Kernel command line has no root= option");
     else if (*root != mounted_root_source && (uuid_root.empty() || *root != uuid_root))

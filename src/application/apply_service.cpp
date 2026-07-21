@@ -73,7 +73,7 @@ ApplyResult ApplyService::apply(const ChangePlan &plan) const {
         throw std::runtime_error("cannot create runtime directory '" + runtime_directory_.string() +
                                  "': " + runtime_error.message());
 
-    struct stat runtime_metadata{};
+    struct stat runtime_metadata {};
     if (::lstat(runtime_directory_.c_str(), &runtime_metadata) < 0)
         throw_errno("cannot inspect runtime directory", runtime_directory_);
     if (S_ISLNK(runtime_metadata.st_mode) || !S_ISDIR(runtime_metadata.st_mode))
@@ -89,7 +89,7 @@ ApplyResult ApplyService::apply(const ChangePlan &plan) const {
         throw_errno("cannot lock", lock_path);
     }
 
-    struct stat target_metadata{};
+    struct stat target_metadata {};
     bool target_exists = false;
     if (::lstat(plan.target.c_str(), &target_metadata) == 0) {
         target_exists = true;
@@ -135,7 +135,7 @@ ApplyResult ApplyService::apply(const ChangePlan &plan) const {
         write_all(output.get(), plan.generated, temporary);
         if (::fchmod(output.get(), mode) < 0)
             throw_errno("cannot set mode", temporary);
-        struct stat temporary_metadata{};
+        struct stat temporary_metadata {};
         if (::fstat(output.get(), &temporary_metadata) < 0)
             throw_errno("cannot inspect temporary file", temporary);
         if (temporary_metadata.st_uid != uid || temporary_metadata.st_gid != gid) {

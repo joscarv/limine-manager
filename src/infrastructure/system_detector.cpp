@@ -41,7 +41,7 @@ std::string require_command(const ProcessRunner &runner, std::vector<std::string
 
 std::string optional_command(const ProcessRunner &runner, std::vector<std::string> args) {
     auto result = runner.run(args);
-    return result.exit_code == 0 ? trim(result.output) : std::string{};
+    return result.exit_code == 0 ? trim(result.output) : std::string {};
 }
 
 std::string mount_field(const ProcessRunner &runner, const std::filesystem::path &target,
@@ -89,7 +89,7 @@ std::string sysfs_backing_device(const FileSystem &filesystem, const std::string
         return {};
 
     const auto device_name = entries.front().path.filename().string();
-    return device_name.empty() ? std::string{} : "/dev/" + device_name;
+    return device_name.empty() ? std::string {} : "/dev/" + device_name;
 }
 
 std::string cryptsetup_backing_device(const ProcessRunner &runner, std::string_view mapper) {
@@ -98,7 +98,7 @@ std::string cryptsetup_backing_device(const ProcessRunner &runner, std::string_v
     std::string line;
     while (std::getline(input, line)) {
         line = trim(line);
-        constexpr std::string_view prefix{"device:"};
+        constexpr std::string_view prefix {"device:"};
         if (line.starts_with(prefix))
             return trim(line.substr(prefix.size()));
     }
@@ -152,9 +152,9 @@ std::filesystem::path discover_limine_efi(const FileSystem &filesystem,
                                           const std::filesystem::path &configured) {
     if (!configured.empty() && filesystem.is_regular_file(configured))
         return configured;
-    const std::vector<std::filesystem::path> candidates{boot_mount / "EFI/BOOT/BOOTX64.EFI",
-                                                        boot_mount / "EFI/limine/limine_x64.efi",
-                                                        boot_mount / "limine_x64.efi"};
+    const std::vector<std::filesystem::path> candidates {boot_mount / "EFI/BOOT/BOOTX64.EFI",
+                                                         boot_mount / "EFI/limine/limine_x64.efi",
+                                                         boot_mount / "limine_x64.efi"};
     for (const auto &candidate : candidates) {
         if (filesystem.is_regular_file(candidate))
             return candidate;
@@ -168,7 +168,7 @@ std::string blake2b(const ProcessRunner &runner, const std::filesystem::path &pa
         return {};
     const auto split = result.output.find_first_of(" \t\r\n");
     const auto digest = result.output.substr(0, split);
-    return digest.size() == 128 ? digest : std::string{};
+    return digest.size() == 128 ? digest : std::string {};
 }
 
 SecureBootInfo detect_secure_boot(const ProcessRunner &runner, const FileSystem &filesystem,

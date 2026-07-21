@@ -132,14 +132,14 @@ void copy_file_secure(const std::filesystem::path &source, const std::filesystem
 void atomic_restore_file(const std::filesystem::path &backup, const std::filesystem::path &target,
                          std::string_view backup_description, std::string_view target_description,
                          std::string_view temporary_suffix) {
-    struct stat backup_metadata{};
+    struct stat backup_metadata {};
     if (::lstat(backup.c_str(), &backup_metadata) < 0)
         throw_errno("cannot inspect " + std::string(backup_description), backup);
     if (S_ISLNK(backup_metadata.st_mode) || !S_ISREG(backup_metadata.st_mode))
         throw std::runtime_error("unsafe " + std::string(backup_description) + ": " +
                                  backup.string());
 
-    struct stat target_metadata{};
+    struct stat target_metadata {};
     if (::lstat(target.c_str(), &target_metadata) == 0) {
         if (S_ISLNK(target_metadata.st_mode) || !S_ISREG(target_metadata.st_mode))
             throw std::runtime_error("unsafe " + std::string(target_description) + ": " +
@@ -163,7 +163,7 @@ void atomic_restore_file(const std::filesystem::path &backup, const std::filesys
 }
 
 void remove_regular_file_secure(const std::filesystem::path &target, std::string_view description) {
-    struct stat metadata{};
+    struct stat metadata {};
     if (::lstat(target.c_str(), &metadata) < 0) {
         if (errno == ENOENT)
             return;

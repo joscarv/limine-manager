@@ -8,8 +8,8 @@ namespace limine_manager::infrastructure {
 
 struct DirectoryEntry {
     std::filesystem::path path;
-    bool regular_file{false};
-    bool directory{false};
+    bool regular_file {false};
+    bool directory {false};
 };
 
 class FileSystem {

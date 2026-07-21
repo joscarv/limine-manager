@@ -50,7 +50,7 @@ std::string rootflags_subvolume(const domain::KernelCommandLine &cmdline) {
     const auto rootflags = cmdline.value("rootflags");
     if (!rootflags)
         return {};
-    constexpr std::string_view prefix{"subvol="};
+    constexpr std::string_view prefix {"subvol="};
     if (!rootflags->starts_with(prefix))
         return {};
     auto value = rootflags->substr(prefix.size());

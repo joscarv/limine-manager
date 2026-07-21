@@ -39,10 +39,10 @@ struct CliOptions {
     std::optional<std::filesystem::path> config_path;
     std::optional<std::filesystem::path> backup_path;
     std::vector<std::string> extra_args;
-    std::string log_format{"text"};
-    bool verbose{false};
-    bool help{false};
-    bool version{false};
+    std::string log_format {"text"};
+    bool verbose {false};
+    bool help {false};
+    bool version {false};
 };
 
 void usage(std::ostream &output) {
@@ -213,7 +213,7 @@ class RefreshLock {
     RefreshLock &operator=(const RefreshLock &) = delete;
 
   private:
-    int fd_{-1};
+    int fd_ {-1};
     std::filesystem::path path_;
 };
 

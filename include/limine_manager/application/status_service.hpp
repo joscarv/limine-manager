@@ -13,9 +13,9 @@ namespace limine_manager::application {
 
 struct StatusReport {
     std::string text;
-    bool healthy{false};
-    bool degraded{false};
-    bool changes_pending{false};
+    bool healthy {false};
+    bool degraded {false};
+    bool changes_pending {false};
 };
 
 class StatusService {

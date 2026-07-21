@@ -34,7 +34,7 @@ void write_byte(int fd, char value) {
 }
 
 void read_byte(int fd) {
-    char value{};
+    char value {};
     while (true) {
         const auto count = ::read(fd, &value, 1);
         if (count == 1)
@@ -73,8 +73,8 @@ int main() {
     application::ApplyService service(runtime);
     const auto plan = planner.build(target, "timeout: 10\n");
 
-    int ready_pipe[2]{};
-    int release_pipe[2]{};
+    int ready_pipe[2] {};
+    int release_pipe[2] {};
     if (::pipe(ready_pipe) < 0)
         fail("cannot create ready pipe");
     if (::pipe(release_pipe) < 0) {
@@ -102,7 +102,7 @@ int main() {
             _exit(11);
         ::close(ready_pipe[1]);
 
-        char release{};
+        char release {};
         while (true) {
             const auto count = ::read(release_pipe[0], &release, 1);
             if (count == 1)
@@ -142,7 +142,7 @@ int main() {
     close_fd(ready_pipe[0]);
     close_fd(release_pipe[1]);
 
-    int child_status{};
+    int child_status {};
     const auto waited = ::waitpid(child, &child_status, 0);
     if (waited < 0)
         fail("waitpid failed");

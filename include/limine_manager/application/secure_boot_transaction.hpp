@@ -33,9 +33,9 @@ class SecureBootTransaction {
     infrastructure::RollbackErrorReporter error_reporter_;
     infrastructure::EfiImageTransaction efi_transaction_;
     std::optional<ApplyResult> apply_result_;
-    bool config_rollback_pending_{false};
-    bool efi_rollback_pending_{true};
-    bool committed_{false};
+    bool config_rollback_pending_ {false};
+    bool efi_rollback_pending_ {true};
+    bool committed_ {false};
 };
 
 } // namespace limine_manager::application

@@ -16,7 +16,7 @@ bool is_key(const std::string &argument, std::string_view key) {
 std::string quote_argument(const std::string &argument) {
     if (argument.find_first_of(" \t\r\n\"\\") == std::string::npos)
         return argument;
-    std::string result{"\""};
+    std::string result {"\""};
     for (const char ch : argument) {
         if (ch == '\"' || ch == '\\')
             result.push_back('\\');

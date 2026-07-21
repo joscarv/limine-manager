@@ -21,7 +21,7 @@ std::filesystem::path backup_name(const std::filesystem::path &image) {
 }
 
 struct stat inspect_image(const std::filesystem::path &image) {
-    struct stat metadata{};
+    struct stat metadata {};
     if (::lstat(image.c_str(), &metadata) < 0)
         throw_errno("cannot inspect EFI image", image);
     if (S_ISLNK(metadata.st_mode) || !S_ISREG(metadata.st_mode))

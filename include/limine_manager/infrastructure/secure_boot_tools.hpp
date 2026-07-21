@@ -12,10 +12,10 @@ struct Blake2bDigest {
 };
 
 struct SecureBootUpdateResult {
-    bool signature_removed{false};
-    bool configuration_enrolled{false};
-    bool image_signed{false};
-    bool signature_verified{false};
+    bool signature_removed {false};
+    bool configuration_enrolled {false};
+    bool image_signed {false};
+    bool signature_verified {false};
 };
 
 class Blake2bHasher {

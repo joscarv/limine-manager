@@ -67,7 +67,7 @@ class FakeFileSystem final : public limine_manager::infrastructure::FileSystem {
     }
     std::string read_text(const std::filesystem::path &path) const override {
         const auto it = files_.find(normalize(path));
-        return it == files_.end() ? std::string{} : it->second;
+        return it == files_.end() ? std::string {} : it->second;
     }
     std::vector<limine_manager::infrastructure::DirectoryEntry>
     list_directory(const std::filesystem::path &path) const override {
@@ -176,15 +176,15 @@ class FakeBtrfsClient final : public limine_manager::infrastructure::BtrfsClient
         return relative.string();
     }
 
-    mutable std::vector<limine_manager::infrastructure::BtrfsSubvolume> subvolumes{
+    mutable std::vector<limine_manager::infrastructure::BtrfsSubvolume> subvolumes {
         {256, "@"}, {257, "@snapshots/123/snapshot"}};
-    mutable bool mounted{false};
-    mutable std::filesystem::path mounted_at{"/"};
-    mutable unsigned long next_id{300};
-    mutable int move_count{0};
-    bool fail_create{false};
-    bool fail_second_move{false};
-    bool fail_list{false};
+    mutable bool mounted {false};
+    mutable std::filesystem::path mounted_at {"/"};
+    mutable unsigned long next_id {300};
+    mutable int move_count {0};
+    bool fail_create {false};
+    bool fail_second_move {false};
+    bool fail_list {false};
 };
 
 limine_manager::infrastructure::KernelInstallation kernel(std::string pkgbase, std::string release,
@@ -206,11 +206,11 @@ void menu_tree_test() {
     system.kernel_cmdline = domain::KernelCommandLine::parse(
         "cryptdevice=UUID=demo:cryptroot root=/dev/mapper/cryptroot rootflags=subvol=@ rw");
 
-    const std::vector<infrastructure::SnapshotInfo> snapshots{
+    const std::vector<infrastructure::SnapshotInfo> snapshots {
         {42, "2026-07-01 12:01:33 +0000", "Before upgrade", true}};
     application::PreviewService service;
     render::LimineRenderer renderer;
-    const auto output = renderer.render(service.build(system, snapshots, config::AppConfig{}));
+    const auto output = renderer.render(service.build(system, snapshots, config::AppConfig {}));
 
     assert(output.find("/+Arch Linux") != std::string::npos);
     assert(output.find("//Linux") != std::string::npos);
@@ -237,7 +237,7 @@ void multiple_kernel_test() {
     application::PreviewService service;
     render::LimineRenderer renderer;
     const auto output = renderer.render(
-        service.build(system, {{7, "2026-07-01", "test", true}}, config::AppConfig{}));
+        service.build(system, {{7, "2026-07-01", "test", true}}, config::AppConfig {}));
     assert(output.find("//Linux LTS") != std::string::npos);
     assert(output.find("////Linux LTS") != std::string::npos);
     assert(output.find("path: boot():/vmlinuz-linux-lts") != std::string::npos);
@@ -307,7 +307,7 @@ void uki_discovery_and_render_test() {
         domain::KernelCommandLine::parse("root=/dev/mapper/cryptroot rootflags=subvol=@ rw");
     application::PreviewService preview;
     render::LimineRenderer renderer;
-    const auto output = renderer.render(preview.build(system, {}, config::AppConfig{}));
+    const auto output = renderer.render(preview.build(system, {}, config::AppConfig {}));
     assert(output.find("protocol: efi") != std::string::npos);
     assert(output.find("path: boot():/EFI/Linux/arch-linux.efi") != std::string::npos);
     assert(output.find("module_path:") == std::string::npos);
@@ -531,15 +531,15 @@ void simulated_system_integration_test() {
     assert(system.limine_config == "/boot/EFI/BOOT/limine.conf");
 
     application::ValidationService validator(filesystem);
-    infrastructure::SnapperConfig snapper{"root", "/", "btrfs"};
-    const std::vector<infrastructure::SnapshotInfo> snapshots{
+    infrastructure::SnapperConfig snapper {"root", "/", "btrfs"};
+    const std::vector<infrastructure::SnapshotInfo> snapshots {
         {42, "2026-07-01", "Before upgrade", true}};
-    const auto report = validator.validate(system, snapper, snapshots, config::AppConfig{});
+    const auto report = validator.validate(system, snapper, snapshots, config::AppConfig {});
     assert(report.valid());
 
     application::PreviewService preview;
     render::LimineRenderer renderer;
-    const auto output = renderer.render(preview.build(system, snapshots, config::AppConfig{}));
+    const auto output = renderer.render(preview.build(system, snapshots, config::AppConfig {}));
     assert(output.find("rootflags=subvol=@snapshots/42/snapshot") != std::string::npos);
 }
 
@@ -587,8 +587,8 @@ void automatic_unencrypted_cmdline_test() {
 
     application::ValidationService validator(filesystem);
     const auto report =
-        validator.validate(system, infrastructure::SnapperConfig{"root", "/", "btrfs"},
-                           {{1, "2026-07-15", "test", true}}, config::AppConfig{});
+        validator.validate(system, infrastructure::SnapperConfig {"root", "/", "btrfs"},
+                           {{1, "2026-07-15", "test", true}}, config::AppConfig {});
     assert(report.valid());
 }
 
@@ -740,8 +740,8 @@ void traditional_encrypt_validation_test() {
 
     application::ValidationService validator(filesystem);
     const auto report =
-        validator.validate(system, infrastructure::SnapperConfig{"root", "/", "btrfs"},
-                           {{1, "2026-07-13", "test", true}}, config::AppConfig{});
+        validator.validate(system, infrastructure::SnapperConfig {"root", "/", "btrfs"},
+                           {{1, "2026-07-13", "test", true}}, config::AppConfig {});
     assert(report.valid());
 }
 
@@ -782,8 +782,8 @@ void archinstall_luks_uuid_validation_test() {
 
     application::ValidationService validator(filesystem);
     const auto report =
-        validator.validate(system, infrastructure::SnapperConfig{"root", "/", "btrfs"},
-                           {{1, "2026-07-16", "archinstall", true}}, config::AppConfig{});
+        validator.validate(system, infrastructure::SnapperConfig {"root", "/", "btrfs"},
+                           {{1, "2026-07-16", "archinstall", true}}, config::AppConfig {});
     assert(report.valid());
 }
 
@@ -827,8 +827,8 @@ void archinstall_partuuid_validation_test() {
 
     application::ValidationService validator(filesystem);
     const auto report =
-        validator.validate(system, infrastructure::SnapperConfig{"root", "/", "btrfs"},
-                           {{1, "2026-07-16", "archinstall", true}}, config::AppConfig{});
+        validator.validate(system, infrastructure::SnapperConfig {"root", "/", "btrfs"},
+                           {{1, "2026-07-16", "archinstall", true}}, config::AppConfig {});
     assert(report.valid());
 }
 
@@ -880,7 +880,7 @@ void apply_service_test() {
     assert(filesystem.read_text(target) == "timeout: 10\n");
     assert(filesystem.read_text(result.backup) == "timeout: 5\n");
 
-    struct stat metadata{};
+    struct stat metadata {};
     assert(::stat(target.c_str(), &metadata) == 0);
     assert((metadata.st_mode & 0777) == 0640);
 
@@ -940,8 +940,8 @@ void deterministic_render_test() {
         domain::KernelCommandLine::parse("root=/dev/mapper/cryptroot rootflags=subvol=@ rw");
     application::PreviewService preview;
     render::LimineRenderer renderer;
-    const auto first = renderer.render(preview.build(system, {}, config::AppConfig{}));
-    const auto second = renderer.render(preview.build(system, {}, config::AppConfig{}));
+    const auto first = renderer.render(preview.build(system, {}, config::AppConfig {}));
+    const auto second = renderer.render(preview.build(system, {}, config::AppConfig {}));
     assert(first == second);
     assert(first.find("Generated by limine-manager") != std::string::npos);
 }
@@ -999,7 +999,7 @@ rollback_plan_for(const limine_manager::infrastructure::SystemInfo &system,
     using namespace limine_manager;
     application::RollbackPlanner planner(btrfs, {"testtx"});
     return planner.build(system, {"root", "/", "btrfs"}, {{123, "2026-07-13", "before", true}},
-                         config::AppConfig{});
+                         config::AppConfig {});
 }
 
 void rollback_planner_test() {
@@ -1063,7 +1063,7 @@ void status_service_test() {
 
     domain::ValidationReport validation;
     validation.info("system", "valid");
-    application::ChangePlan plan{
+    application::ChangePlan plan {
         application::ChangeKind::unchanged, model.system.limine_config, {}, {}};
     config::AppConfig config;
     config.theme_name = "catppuccin";
@@ -1125,7 +1125,7 @@ void secure_boot_render_test() {
 
     application::PreviewService preview;
     render::LimineRenderer renderer;
-    const auto output = renderer.render(preview.build(system, {}, config::AppConfig{}));
+    const auto output = renderer.render(preview.build(system, {}, config::AppConfig {}));
     assert(output.find("path: boot():/vmlinuz-linux#" + std::string(128, 'a')) !=
            std::string::npos);
     assert(output.find("module_path: boot():/intel-ucode.img#" + std::string(128, 'b')) !=

@@ -10,7 +10,7 @@ namespace limine_manager::application {
 enum class ChangeKind { unchanged, create, update };
 
 struct ChangePlan {
-    ChangeKind kind{ChangeKind::unchanged};
+    ChangeKind kind {ChangeKind::unchanged};
     std::filesystem::path target;
     std::string installed;
     std::string generated;

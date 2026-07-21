@@ -12,14 +12,14 @@
 namespace limine_manager::application {
 
 struct RefreshResult {
-    bool validation_passed{false};
-    bool changed{false};
-    bool secure_boot_activation_required{false};
-    ChangeKind planned_change{ChangeKind::unchanged};
-    std::size_t error_count{0};
-    std::size_t warning_count{0};
+    bool validation_passed {false};
+    bool changed {false};
+    bool secure_boot_activation_required {false};
+    ChangeKind planned_change {ChangeKind::unchanged};
+    std::size_t error_count {0};
+    std::size_t warning_count {0};
     ApplyResult apply;
-    std::size_t pruned_backups{0};
+    std::size_t pruned_backups {0};
 };
 
 class RefreshService {

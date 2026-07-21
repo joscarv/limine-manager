@@ -14,14 +14,14 @@ struct KernelInstallation {
     std::string display_name;
     std::filesystem::path image;
     std::vector<std::filesystem::path> initrds;
-    bool unified_kernel_image{false};
-    bool running{false};
+    bool unified_kernel_image {false};
+    bool running {false};
 };
 
 struct KernelDiscoveryProfile {
-    std::filesystem::path boot_mount{"/boot"};
-    std::filesystem::path modules_root{"/usr/lib/modules"};
-    std::filesystem::path cpuinfo{"/proc/cpuinfo"};
+    std::filesystem::path boot_mount {"/boot"};
+    std::filesystem::path modules_root {"/usr/lib/modules"};
+    std::filesystem::path cpuinfo {"/proc/cpuinfo"};
 };
 
 class KernelDiscovery {

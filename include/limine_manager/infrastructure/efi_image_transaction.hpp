@@ -38,7 +38,7 @@ class EfiImageTransaction {
     std::filesystem::path image_;
     std::filesystem::path backup_;
     RollbackErrorReporter error_reporter_;
-    bool active_{true};
+    bool active_ {true};
 };
 
 } // namespace limine_manager::infrastructure

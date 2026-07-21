@@ -163,7 +163,7 @@ void assign(AppConfig &config, const std::string &section, const std::string &ke
             config.secure_boot_automatic_apply = parse_bool(value, line);
         else if (key == "efi_executable")
             config.secure_boot_efi_executable =
-                value == "auto" ? std::filesystem::path{} : std::filesystem::path(value),
+                value == "auto" ? std::filesystem::path {} : std::filesystem::path(value),
             config.system.limine_efi_executable = config.secure_boot_efi_executable;
         else
             throw std::runtime_error("Unknown key [secure_boot]." + key + " at line " +
