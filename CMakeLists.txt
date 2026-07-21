@@ -77,6 +77,7 @@ add_library(limine_manager_core
     src/infrastructure/kernel_discovery.cpp
     src/infrastructure/process.cpp
     src/infrastructure/secure_boot_tools.cpp
+    src/infrastructure/secure_file_ops.cpp
     src/infrastructure/system_detector.cpp
     src/infrastructure/snapper_client.cpp
     src/render/limine_renderer.cpp
@@ -92,7 +93,7 @@ limine_manager_apply_quality(limine-manager)
 
 install(TARGETS limine-manager RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES config/limine-manager.conf.example DESTINATION ${CMAKE_INSTALL_DATADIR}/limine-manager)
-install(PROGRAMS scripts/limine-manager-update DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(PROGRAMS scripts/limine-manager-update DESTINATION ${CMAKE_INSTALL_BINDINDIR})
 install(PROGRAMS scripts/90-limine-manager-snapper DESTINATION ${CMAKE_INSTALL_LIBDIR}/snapper/plugins RENAME 90-limine-manager)
 install(PROGRAMS scripts/create-release-tarball DESTINATION ${CMAKE_INSTALL_DATADIR}/limine-manager/tools)
 install(FILES packaging/90-limine-manager.hook.example DESTINATION ${CMAKE_INSTALL_DATADIR}/limine-manager/hooks)
@@ -110,6 +111,7 @@ if(LIMINE_MANAGER_BUILD_TESTS)
     limine_manager_add_test(limine_manager_efi_image_transaction_tests tests/efi_image_transaction_tests.cpp)
     limine_manager_add_test(limine_manager_secure_boot_apply_service_tests tests/secure_boot_apply_service_tests.cpp)
     limine_manager_add_test(limine_manager_secure_boot_transaction_hardening_tests tests/secure_boot_transaction_hardening_tests.cpp)
+    limine_manager_add_test(limine_manager_secure_file_ops_tests tests/secure_file_ops_tests.cpp)
 endif()
 
 add_custom_target(format
