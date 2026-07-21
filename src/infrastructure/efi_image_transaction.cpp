@@ -2,7 +2,6 @@
 
 #include "limine_manager/infrastructure/secure_file_ops.hpp"
 
-#include <cerrno>
 #include <chrono>
 #include <stdexcept>
 #include <string>
@@ -34,8 +33,13 @@ struct stat inspect_image(const std::filesystem::path &image) {
 EfiImageTransaction::EfiImageTransaction(std::filesystem::path image)
     : image_(std::move(image)), backup_(backup_name(image_)) {
     const auto metadata = inspect_image(image_);
-    copy_file_secure(image_, backup_, metadata, "EFI image", "EFI image backup");
-    fsync_directory(backup_.parent_path());
+    try {
+        copy_file_secure(image_, backup_, metadata, "EFI image", "EFI image backup");
+        fsync_directory(backup_.parent_path());
+    } catch (...) {
+        ::unlink(backup_.c_str());
+        throw;
+    }
 }
 
 EfiImageTransaction::~EfiImageTransaction() {
@@ -64,4 +68,4 @@ void EfiImageTransaction::rollback() {
     active_ = false;
 }
 
-} // namespace limine_manager::infrastructure {
+} // namespace limine_manager::infrastructure
