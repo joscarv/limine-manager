@@ -8,6 +8,7 @@
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <vector>
 
 namespace {
 
@@ -204,6 +205,40 @@ void efi_rollback_can_be_retried_test() {
     std::filesystem::remove_all(root);
 }
 
+void destructor_reports_configuration_rollback_failure_test() {
+    using namespace limine_manager;
+
+    const auto root = test_root("destructor-report");
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root);
+
+    const auto config = root / "limine.conf";
+    const auto real_backup = root / "real-backup";
+    const auto backup = root / "limine.conf.bak";
+    const auto efi = root / "BOOTX64.EFI";
+    write_text(config, "new configuration\n");
+    write_text(real_backup, "original configuration\n");
+    write_text(efi, "original EFI\n");
+    std::filesystem::create_symlink(real_backup.filename(), backup);
+
+    std::vector<std::string> reports;
+    {
+        application::SecureBootTransaction transaction(
+            efi, [&reports](std::string_view message) { reports.emplace_back(message); });
+        transaction.record_apply({true, config, backup});
+        write_text(efi, "modified EFI\n");
+    }
+
+    assert(reports.size() == 1);
+    assert(reports.front().find("Secure Boot rollback failed during destruction") !=
+           std::string::npos);
+    assert(reports.front().find("unsafe configuration backup") != std::string::npos);
+    assert(read_text(config) == "new configuration\n");
+    assert(read_text(efi) == "original EFI\n");
+
+    std::filesystem::remove_all(root);
+}
+
 } // namespace
 
 int main() {
@@ -212,5 +247,6 @@ int main() {
     symlink_created_target_is_not_removed_test();
     configuration_rollback_can_be_retried_without_repeating_efi_test();
     efi_rollback_can_be_retried_test();
+    destructor_reports_configuration_rollback_failure_test();
     return 0;
 }
