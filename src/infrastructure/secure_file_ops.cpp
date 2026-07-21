@@ -119,24 +119,28 @@ void copy_file_secure(const std::filesystem::path &source,
 
 void atomic_restore_file(const std::filesystem::path &backup,
                          const std::filesystem::path &target,
+                         std::string_view backup_description,
+                         std::string_view target_description,
                          std::string_view temporary_suffix) {
     struct stat backup_metadata {};
     if (::lstat(backup.c_str(), &backup_metadata) < 0)
-        throw_errno("cannot inspect backup", backup);
+        throw_errno("cannot inspect " + std::string(backup_description), backup);
     if (S_ISLNK(backup_metadata.st_mode) || !S_ISREG(backup_metadata.st_mode))
-        throw std::runtime_error("unsafe backup: " + backup.string());
+        throw std::runtime_error("unsafe " + std::string(backup_description) + ": " +
+                                 backup.string());
 
     struct stat target_metadata {};
     if (::lstat(target.c_str(), &target_metadata) == 0) {
         if (S_ISLNK(target_metadata.st_mode) || !S_ISREG(target_metadata.st_mode))
-            throw std::runtime_error("unsafe rollback target: " + target.string());
+            throw std::runtime_error("unsafe " + std::string(target_description) + ": " +
+                                     target.string());
     } else if (errno != ENOENT) {
-        throw_errno("cannot inspect rollback target", target);
+        throw_errno("cannot inspect " + std::string(target_description), target);
     }
 
     const auto temporary = unique_sibling_path(target, temporary_suffix);
     try {
-        copy_file_secure(backup, temporary, backup_metadata, "backup", "rollback file");
+        copy_file_secure(backup, temporary, backup_metadata, backup_description, "rollback file");
         if (::rename(temporary.c_str(), target.c_str()) < 0)
             throw_errno("cannot atomically restore", target);
         fsync_directory(target.parent_path());
