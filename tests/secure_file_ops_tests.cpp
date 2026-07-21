@@ -3,6 +3,7 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
+#include <stdexcept>
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
