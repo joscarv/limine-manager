@@ -7,6 +7,8 @@
 #include "limine_manager/infrastructure/secure_boot_tools.hpp"
 #include "limine_manager/infrastructure/system_detector.hpp"
 
+#include <utility>
+
 namespace limine_manager::application {
 
 namespace testing {
