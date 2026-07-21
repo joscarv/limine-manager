@@ -7,8 +7,6 @@
 #include "limine_manager/infrastructure/secure_boot_tools.hpp"
 #include "limine_manager/infrastructure/system_detector.hpp"
 
-#include <utility>
-
 namespace limine_manager::application {
 
 namespace testing {
@@ -29,9 +27,7 @@ class SecureBootApplyService {
   public:
     explicit SecureBootApplyService(
         const infrastructure::ProcessRunner &runner,
-        infrastructure::RollbackErrorReporter rollback_error_reporter = {})
-        : hasher_(runner), tools_(runner),
-          rollback_error_reporter_(std::move(rollback_error_reporter)) {}
+        infrastructure::RollbackErrorReporter rollback_error_reporter = {});
 
     [[nodiscard]] ApplyResult apply(const ChangePlan &plan,
                                     const infrastructure::SystemInfo &system,
