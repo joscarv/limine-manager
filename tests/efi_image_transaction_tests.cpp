@@ -1,4 +1,5 @@
 #include "limine_manager/infrastructure/efi_image_transaction.hpp"
+#include "limine_manager/infrastructure/secure_file_ops.hpp"
 
 #include <cassert>
 #include <filesystem>
@@ -7,6 +8,7 @@
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <vector>
 
 namespace {
 
@@ -160,6 +162,57 @@ void rejects_symlink_rollback_target_test() {
     std::filesystem::remove_all(root);
 }
 
+void destructor_reports_rollback_failure_test() {
+    using limine_manager::infrastructure::testing::SecureFileFailurePoint;
+
+    const auto root = test_root("destructor-report");
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root);
+    const auto image = root / "BOOTX64.EFI";
+    write_text(image, "original");
+
+    std::vector<std::string> reports;
+    std::filesystem::path backup;
+    {
+        limine_manager::infrastructure::EfiImageTransaction transaction(
+            image, [&reports](std::string_view message) { reports.emplace_back(message); });
+        backup = transaction.backup();
+        write_text(image, "broken");
+        limine_manager::infrastructure::testing::inject_failure_once(
+            SecureFileFailurePoint::before_rename);
+    }
+
+    assert(reports.size() == 1);
+    assert(reports.front().find("EFI image rollback failed during destruction") !=
+           std::string::npos);
+    assert(reports.front().find("injected secure file failure") != std::string::npos);
+    assert(read_text(image) == "broken");
+    assert(std::filesystem::exists(backup));
+
+    std::filesystem::remove_all(root);
+}
+
+void destructor_swallows_reporter_failure_test() {
+    using limine_manager::infrastructure::testing::SecureFileFailurePoint;
+
+    const auto root = test_root("throwing-reporter");
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root);
+    const auto image = root / "BOOTX64.EFI";
+    write_text(image, "original");
+
+    {
+        limine_manager::infrastructure::EfiImageTransaction transaction(
+            image, [](std::string_view) { throw std::runtime_error("reporter failure"); });
+        write_text(image, "broken");
+        limine_manager::infrastructure::testing::inject_failure_once(
+            SecureFileFailurePoint::before_rename);
+    }
+
+    assert(read_text(image) == "broken");
+    std::filesystem::remove_all(root);
+}
+
 } // namespace
 
 int main() {
@@ -168,5 +221,7 @@ int main() {
     destructor_rollback_test();
     rejects_symlink_image_test();
     rejects_symlink_rollback_target_test();
+    destructor_reports_rollback_failure_test();
+    destructor_swallows_reporter_failure_test();
     return 0;
 }
