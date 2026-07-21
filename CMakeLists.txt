@@ -93,7 +93,7 @@ limine_manager_apply_quality(limine-manager)
 
 install(TARGETS limine-manager RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES config/limine-manager.conf.example DESTINATION ${CMAKE_INSTALL_DATADIR}/limine-manager)
-install(PROGRAMS scripts/limine-manager-update DESTINATION ${CMAKE_INSTALL_BINDINDIR})
+install(PROGRAMS scripts/limine-manager-update DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(PROGRAMS scripts/90-limine-manager-snapper DESTINATION ${CMAKE_INSTALL_LIBDIR}/snapper/plugins RENAME 90-limine-manager)
 install(PROGRAMS scripts/create-release-tarball DESTINATION ${CMAKE_INSTALL_DATADIR}/limine-manager/tools)
 install(FILES packaging/90-limine-manager.hook.example DESTINATION ${CMAKE_INSTALL_DATADIR}/limine-manager/hooks)
