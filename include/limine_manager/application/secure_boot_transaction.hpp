@@ -25,10 +25,13 @@ class SecureBootTransaction {
 
   private:
     void rollback_config();
+    [[nodiscard]] bool rollback_pending() const noexcept;
 
     infrastructure::EfiImageTransaction efi_transaction_;
     std::optional<ApplyResult> apply_result_;
-    bool active_{true};
+    bool config_rollback_pending_{false};
+    bool efi_rollback_pending_{true};
+    bool committed_{false};
 };
 
 } // namespace limine_manager::application
