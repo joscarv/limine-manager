@@ -24,7 +24,7 @@ class UniqueFd {
 };
 
 [[noreturn]] void throw_errno(const std::string &operation,
-                              const std::filesystem::path &path);
+                               const std::filesystem::path &path);
 void write_all(int fd, std::string_view data, const std::filesystem::path &path);
 [[nodiscard]] std::string read_all(int fd, const std::filesystem::path &path);
 [[nodiscard]] std::filesystem::path
@@ -45,5 +45,21 @@ void atomic_restore_file(const std::filesystem::path &backup,
 
 void remove_regular_file_secure(const std::filesystem::path &target,
                                 std::string_view description);
+
+namespace testing {
+
+enum class SecureFileFailurePoint {
+    after_temporary_create,
+    before_file_fsync,
+    before_rename,
+    after_rename,
+    before_directory_fsync,
+    before_unlink,
+};
+
+void inject_failure_once(SecureFileFailurePoint point) noexcept;
+void clear_failure_injection() noexcept;
+
+} // namespace testing
 
 } // namespace limine_manager::infrastructure
