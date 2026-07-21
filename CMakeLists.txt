@@ -58,6 +58,7 @@ add_library(limine_manager_core
     src/application/change_planner.cpp
     src/application/apply_service.cpp
     src/application/secure_boot_apply_service.cpp
+    src/application/secure_boot_transaction.cpp
     src/application/automation.cpp
     src/application/backup_service.cpp
     src/application/rollback_planner.cpp
@@ -107,6 +108,7 @@ if(LIMINE_MANAGER_BUILD_TESTS)
     limine_manager_add_test(limine_manager_runtime_lock_tests tests/runtime_lock_tests.cpp)
     limine_manager_add_test(limine_manager_secure_boot_tools_tests tests/secure_boot_tools_tests.cpp)
     limine_manager_add_test(limine_manager_efi_image_transaction_tests tests/efi_image_transaction_tests.cpp)
+    limine_manager_add_test(limine_manager_secure_boot_apply_service_tests tests/secure_boot_apply_service_tests.cpp)
 endif()
 
 add_custom_target(format
