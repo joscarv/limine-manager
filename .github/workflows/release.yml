@@ -125,8 +125,7 @@ jobs:
           done
 
       - name: Verify generated release assets
-        working-directory: dist
-        run: ../scripts/verify-release-assets .
+        run: bash scripts/verify-release-assets dist
 
       - name: Upload validation artifacts
         uses: actions/upload-artifact@v4
