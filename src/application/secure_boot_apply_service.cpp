@@ -1,37 +1,54 @@
 #include "limine_manager/application/secure_boot_apply_service.hpp"
 
-#include <chrono>
-#include <filesystem>
+#include "limine_manager/application/secure_boot_transaction.hpp"
+
+#include <exception>
+#include <optional>
 #include <stdexcept>
 #include <string>
-#include <unistd.h>
+#include <utility>
 
 namespace limine_manager::application {
 namespace {
-std::string trim(std::string value) {
-    const auto first = value.find_first_not_of(" \t\r\n");
-    if (first == std::string::npos)
-        return {};
-    return value.substr(first, value.find_last_not_of(" \t\r\n") - first + 1);
+
+thread_local std::optional<testing::SecureBootApplyFailurePoint> injected_failure;
+
+void maybe_fail(testing::SecureBootApplyFailurePoint point) {
+    if (!injected_failure.has_value() || *injected_failure != point)
+        return;
+    injected_failure.reset();
+    throw std::runtime_error("injected Secure Boot apply failure");
 }
-std::string hash_file(const infrastructure::ProcessRunner &runner,
-                      const std::filesystem::path &path) {
-    const auto result = runner.run({"b2sum", path.string()});
-    if (result.exit_code != 0)
-        throw std::runtime_error("b2sum failed for " + path.string() + ": " + trim(result.output));
-    const auto space = result.output.find_first_of(" \t");
-    const auto hash = result.output.substr(0, space);
-    if (hash.size() != 128)
-        throw std::runtime_error("invalid BLAKE2b digest for " + path.string());
-    return hash;
+
+std::string exception_message(const std::exception_ptr &error) {
+    try {
+        std::rethrow_exception(error);
+    } catch (const std::exception &exception) {
+        return exception.what();
+    } catch (...) {
+        return "unknown error";
+    }
 }
-std::filesystem::path efi_backup_name(const std::filesystem::path &efi) {
-    const auto ticks = std::chrono::system_clock::now().time_since_epoch().count();
-    return std::filesystem::temp_directory_path() /
-           ("limine-manager-" + efi.filename().string() + "." +
-            std::to_string(::getpid()) + "." + std::to_string(ticks) + ".bak");
-}
+
 } // namespace
+
+namespace testing {
+
+void inject_failure_once(SecureBootApplyFailurePoint point) noexcept {
+    injected_failure = point;
+}
+
+void clear_failure_injection() noexcept {
+    injected_failure.reset();
+}
+
+} // namespace testing
+
+SecureBootApplyService::SecureBootApplyService(
+    const infrastructure::ProcessRunner &runner,
+    infrastructure::RollbackErrorReporter rollback_error_reporter)
+    : hasher_(runner), tools_(runner),
+      rollback_error_reporter_(std::move(rollback_error_reporter)) {}
 
 ApplyResult SecureBootApplyService::apply(const ChangePlan &plan,
                                            const infrastructure::SystemInfo &system,
@@ -39,40 +56,38 @@ ApplyResult SecureBootApplyService::apply(const ChangePlan &plan,
     if (!plan.has_changes())
         return {false, plan.target, {}};
     if (!system.secure_boot.enabled || !config.secure_boot_protect_config)
-        return ApplyService{}.apply(plan);
+        return ApplyService{config.automation_runtime_directory}.apply(plan);
     if (system.secure_boot.efi_executable.empty())
-        throw std::runtime_error("Secure Boot is enabled but the active Limine EFI executable is unknown");
+        throw std::runtime_error(
+            "Secure Boot is enabled but the active Limine EFI executable is unknown");
 
-    const auto efi = system.secure_boot.efi_executable;
-    const auto efi_backup = efi_backup_name(efi);
-    std::filesystem::copy_file(efi, efi_backup, std::filesystem::copy_options::none);
-    ApplyResult result;
+    SecureBootTransaction transaction{system.secure_boot.efi_executable,
+                                      rollback_error_reporter_};
+
     try {
-        result = ApplyService{}.apply(plan);
-        const auto digest = hash_file(runner_, plan.target);
-        auto command = runner_.run({"sbattach", "--remove", efi.string()});
-        if (command.exit_code != 0)
-            throw std::runtime_error("sbattach signature removal failed: " + trim(command.output));
-        command = runner_.run({"limine", "enroll-config", efi.string(), digest});
-        if (command.exit_code != 0)
-            throw std::runtime_error("limine enroll-config failed: " + trim(command.output));
-        command = runner_.run({"sbctl", "sign", "-s", efi.string()});
-        if (command.exit_code != 0)
-            throw std::runtime_error("sbctl sign failed: " + trim(command.output));
-        command = runner_.run({"sbctl", "verify", efi.string()});
-        if (command.exit_code != 0)
-            throw std::runtime_error("sbctl verify failed: " + trim(command.output));
-        std::error_code cleanup_error;
-        std::filesystem::remove(efi_backup, cleanup_error);
+        auto result = ApplyService{config.automation_runtime_directory}.apply(plan);
+        transaction.record_apply(result);
+        maybe_fail(testing::SecureBootApplyFailurePoint::after_config_apply);
+
+        const auto digest = hasher_.digest(plan.target);
+        maybe_fail(testing::SecureBootApplyFailurePoint::after_digest);
+
+        (void)tools_.update_limine_image(transaction.efi_image(), digest);
+        maybe_fail(testing::SecureBootApplyFailurePoint::after_efi_update);
+        maybe_fail(testing::SecureBootApplyFailurePoint::before_commit);
+
+        transaction.commit();
         return result;
     } catch (...) {
-        std::error_code ec;
-        std::filesystem::copy_file(efi_backup, efi, std::filesystem::copy_options::overwrite_existing, ec);
-        if (!result.backup.empty())
-            std::filesystem::copy_file(result.backup, plan.target,
-                                       std::filesystem::copy_options::overwrite_existing, ec);
-        std::filesystem::remove(efi_backup, ec);
-        throw;
+        const auto original_error = std::current_exception();
+        try {
+            transaction.rollback();
+        } catch (const std::exception &rollback_error) {
+            throw std::runtime_error(exception_message(original_error) +
+                                     "; automatic rollback also failed: " +
+                                     rollback_error.what());
+        }
+        std::rethrow_exception(original_error);
     }
 }
 

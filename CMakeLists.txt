@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(limine-manager VERSION 1.5.0 LANGUAGES CXX)
+project(limine-manager VERSION 1.6.0 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(CTest)
@@ -38,6 +38,14 @@ function(limine_manager_apply_quality TARGET_NAME)
     endif()
 endfunction()
 
+function(limine_manager_add_test TARGET_NAME SOURCE_FILE)
+    add_executable(${TARGET_NAME} ${SOURCE_FILE})
+    target_link_libraries(${TARGET_NAME} PRIVATE limine_manager_core)
+    limine_manager_apply_quality(${TARGET_NAME})
+    target_compile_options(${TARGET_NAME} PRIVATE $<$<CXX_COMPILER_ID:GNU,Clang>:-UNDEBUG>)
+    add_test(NAME ${TARGET_NAME} COMMAND ${TARGET_NAME})
+endfunction()
+
 if(LIMINE_MANAGER_ENABLE_CLANG_TIDY)
     find_program(CLANG_TIDY_EXECUTABLE NAMES clang-tidy REQUIRED)
     set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_EXECUTABLE};--config-file=${CMAKE_SOURCE_DIR}/.clang-tidy")
@@ -50,6 +58,7 @@ add_library(limine_manager_core
     src/application/change_planner.cpp
     src/application/apply_service.cpp
     src/application/secure_boot_apply_service.cpp
+    src/application/secure_boot_transaction.cpp
     src/application/automation.cpp
     src/application/backup_service.cpp
     src/application/rollback_planner.cpp
@@ -64,8 +73,11 @@ add_library(limine_manager_core
     src/config/theme.cpp
     src/infrastructure/filesystem.cpp
     src/infrastructure/btrfs_client.cpp
+    src/infrastructure/efi_image_transaction.cpp
     src/infrastructure/kernel_discovery.cpp
     src/infrastructure/process.cpp
+    src/infrastructure/secure_boot_tools.cpp
+    src/infrastructure/secure_file_ops.cpp
     src/infrastructure/system_detector.cpp
     src/infrastructure/snapper_client.cpp
     src/render/limine_renderer.cpp
@@ -91,12 +103,15 @@ install(FILES completions/limine-manager.bash DESTINATION ${CMAKE_INSTALL_DATADI
 install(FILES completions/_limine-manager DESTINATION ${CMAKE_INSTALL_DATADIR}/zsh/site-functions)
 
 if(LIMINE_MANAGER_BUILD_TESTS)
-    add_executable(limine_manager_tests tests/tests.cpp)
-    target_link_libraries(limine_manager_tests PRIVATE limine_manager_core)
+    limine_manager_add_test(limine_manager_tests tests/tests.cpp)
     target_compile_definitions(limine_manager_tests PRIVATE LIMINE_MANAGER_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-    limine_manager_apply_quality(limine_manager_tests)
-    target_compile_options(limine_manager_tests PRIVATE $<$<CXX_COMPILER_ID:GNU,Clang>:-UNDEBUG>)
-    add_test(NAME limine_manager_tests COMMAND limine_manager_tests)
+
+    limine_manager_add_test(limine_manager_runtime_lock_tests tests/runtime_lock_tests.cpp)
+    limine_manager_add_test(limine_manager_secure_boot_tools_tests tests/secure_boot_tools_tests.cpp)
+    limine_manager_add_test(limine_manager_efi_image_transaction_tests tests/efi_image_transaction_tests.cpp)
+    limine_manager_add_test(limine_manager_secure_boot_apply_service_tests tests/secure_boot_apply_service_tests.cpp)
+    limine_manager_add_test(limine_manager_secure_boot_transaction_hardening_tests tests/secure_boot_transaction_hardening_tests.cpp)
+    limine_manager_add_test(limine_manager_secure_file_ops_tests tests/secure_file_ops_tests.cpp)
 endif()
 
 add_custom_target(format
