@@ -297,6 +297,10 @@ int main(int argc, char **argv) {
         return 0;
     }
 
+    auto rollback_reporter = [&](std::string_view message) {
+        log_message(*cli, "error", "secure_boot.rollback_failed", message);
+    };
+
     try {
         using namespace limine_manager;
         infrastructure::RealFileSystem filesystem;
@@ -543,7 +547,7 @@ int main(int argc, char **argv) {
             const auto generated = renderer.render(preview.build(system, menu_snapshots, loaded.value));
             application::ChangePlanner planner(filesystem);
             const auto plan = planner.build(system.limine_config, generated);
-            application::SecureBootApplyService apply_service(runner);
+            application::SecureBootApplyService apply_service(runner, rollback_reporter);
             const auto result = apply_service.apply(plan, system, loaded.value);
             const auto removed =
                 backup_service.prune(system.limine_config, loaded.value.backup_retention);
@@ -637,7 +641,7 @@ int main(int argc, char **argv) {
             return 0;
         }
         require_root("apply");
-        application::SecureBootApplyService apply_service(runner);
+        application::SecureBootApplyService apply_service(runner, rollback_reporter);
         const auto result = apply_service.apply(plan, system, loaded.value);
         const auto removed = backup_service.prune(plan.target, loaded.value.backup_retention);
         std::cout << "Applied: " << result.target << '\n';
