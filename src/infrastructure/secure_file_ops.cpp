@@ -4,11 +4,24 @@
 #include <chrono>
 #include <cstring>
 #include <fcntl.h>
+#include <optional>
 #include <stdexcept>
 #include <unistd.h>
 #include <utility>
 
 namespace limine_manager::infrastructure {
+namespace {
+
+thread_local std::optional<testing::SecureFileFailurePoint> injected_failure;
+
+void fail_if_injected(testing::SecureFileFailurePoint point) {
+    if (!injected_failure.has_value() || *injected_failure != point)
+        return;
+    injected_failure.reset();
+    throw std::runtime_error("injected secure file failure");
+}
+
+} // namespace
 
 UniqueFd::UniqueFd(int fd) noexcept : fd_(fd) {}
 
@@ -36,7 +49,7 @@ int UniqueFd::get() const noexcept {
 }
 
 [[noreturn]] void throw_errno(const std::string &operation,
-                              const std::filesystem::path &path) {
+                               const std::filesystem::path &path) {
     throw std::runtime_error(operation + " '" + path.string() + "': " + std::strerror(errno));
 }
 
@@ -71,7 +84,7 @@ std::string read_all(int fd, const std::filesystem::path &path) {
 }
 
 std::filesystem::path unique_sibling_path(const std::filesystem::path &target,
-                                          std::string_view suffix) {
+                                           std::string_view suffix) {
     const auto ticks = std::chrono::steady_clock::now().time_since_epoch().count();
     return target.parent_path() /
            (target.filename().string() + std::string(suffix) + "." +
@@ -83,6 +96,7 @@ void fsync_directory(const std::filesystem::path &directory) {
     UniqueFd fd(::open(path.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC));
     if (fd.get() < 0)
         throw_errno("cannot open directory", path);
+    fail_if_injected(testing::SecureFileFailurePoint::before_directory_fsync);
     if (::fsync(fd.get()) < 0)
         throw_errno("cannot fsync directory", path);
 }
@@ -103,12 +117,14 @@ void copy_file_secure(const std::filesystem::path &source,
         throw_errno("cannot create " + std::string(destination_description), destination);
 
     try {
+        fail_if_injected(testing::SecureFileFailurePoint::after_temporary_create);
         const auto content = read_all(input.get(), source);
         write_all(output.get(), content, destination);
         if (::fchmod(output.get(), metadata.st_mode & 07777) < 0)
             throw_errno("cannot preserve mode", destination);
         if (::fchown(output.get(), metadata.st_uid, metadata.st_gid) < 0)
             throw_errno("cannot preserve ownership", destination);
+        fail_if_injected(testing::SecureFileFailurePoint::before_file_fsync);
         if (::fsync(output.get()) < 0)
             throw_errno("cannot fsync", destination);
     } catch (...) {
@@ -141,8 +157,10 @@ void atomic_restore_file(const std::filesystem::path &backup,
     const auto temporary = unique_sibling_path(target, temporary_suffix);
     try {
         copy_file_secure(backup, temporary, backup_metadata, backup_description, "rollback file");
+        fail_if_injected(testing::SecureFileFailurePoint::before_rename);
         if (::rename(temporary.c_str(), target.c_str()) < 0)
             throw_errno("cannot atomically restore", target);
+        fail_if_injected(testing::SecureFileFailurePoint::after_rename);
         fsync_directory(target.parent_path());
     } catch (...) {
         ::unlink(temporary.c_str());
@@ -160,9 +178,22 @@ void remove_regular_file_secure(const std::filesystem::path &target,
     }
     if (S_ISLNK(metadata.st_mode) || !S_ISREG(metadata.st_mode))
         throw std::runtime_error("unsafe " + std::string(description) + ": " + target.string());
+    fail_if_injected(testing::SecureFileFailurePoint::before_unlink);
     if (::unlink(target.c_str()) < 0)
         throw_errno("cannot remove " + std::string(description), target);
     fsync_directory(target.parent_path());
 }
+
+namespace testing {
+
+void inject_failure_once(SecureFileFailurePoint point) noexcept {
+    injected_failure = point;
+}
+
+void clear_failure_injection() noexcept {
+    injected_failure.reset();
+}
+
+} // namespace testing
 
 } // namespace limine_manager::infrastructure
