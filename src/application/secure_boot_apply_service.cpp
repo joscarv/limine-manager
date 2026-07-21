@@ -54,7 +54,8 @@ ApplyResult SecureBootApplyService::apply(const ChangePlan &plan,
         throw std::runtime_error(
             "Secure Boot is enabled but the active Limine EFI executable is unknown");
 
-    SecureBootTransaction transaction{system.secure_boot.efi_executable};
+    SecureBootTransaction transaction{system.secure_boot.efi_executable,
+                                      rollback_error_reporter_};
 
     try {
         auto result = ApplyService{config.automation_runtime_directory}.apply(plan);
