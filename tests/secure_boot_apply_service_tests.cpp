@@ -23,6 +23,9 @@ void write_text(const std::filesystem::path &path, const std::string &content) {
 
 class MutatingProcessRunner final : public limine_manager::infrastructure::ProcessRunner {
   public:
+    MutatingProcessRunner(std::filesystem::path efi_path, std::size_t failure)
+        : efi(std::move(efi_path)), fail_command(failure) {}
+
     std::filesystem::path efi;
     std::size_t fail_command{0};
     mutable std::size_t secure_boot_command{0};
@@ -71,7 +74,7 @@ void rollback_each_secure_boot_stage_test() {
 
         application::ChangePlan plan{application::ChangeKind::update, config_path,
                                      "timeout: 5\n", "timeout: 10\n"};
-        MutatingProcessRunner runner{efi_path, failure};
+        MutatingProcessRunner runner(efi_path, failure);
         application::SecureBootApplyService service(runner);
 
         bool failed_with_original_error = false;
@@ -101,7 +104,7 @@ void rollback_created_configuration_test() {
     write_text(efi_path, "original EFI\n");
 
     application::ChangePlan plan{application::ChangeKind::create, config_path, {}, "timeout: 10\n"};
-    MutatingProcessRunner runner{efi_path, 2};
+    MutatingProcessRunner runner(efi_path, 2);
     application::SecureBootApplyService service(runner);
 
     bool failed = false;
@@ -131,7 +134,7 @@ void successful_commit_test() {
 
     application::ChangePlan plan{application::ChangeKind::update, config_path,
                                  "timeout: 5\n", "timeout: 10\n"};
-    MutatingProcessRunner runner{efi_path, 0};
+    MutatingProcessRunner runner(efi_path, 0);
     application::SecureBootApplyService service(runner);
 
     const auto result = service.apply(plan, system_for(efi_path), config_for(root / "run"));
