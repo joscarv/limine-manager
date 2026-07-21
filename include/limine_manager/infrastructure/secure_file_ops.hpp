@@ -25,13 +25,10 @@ class UniqueFd {
 
 [[noreturn]] void throw_errno(const std::string &operation,
                               const std::filesystem::path &path);
-
 void write_all(int fd, std::string_view data, const std::filesystem::path &path);
 [[nodiscard]] std::string read_all(int fd, const std::filesystem::path &path);
-
 [[nodiscard]] std::filesystem::path
 unique_sibling_path(const std::filesystem::path &target, std::string_view suffix);
-
 void fsync_directory(const std::filesystem::path &directory);
 
 void copy_file_secure(const std::filesystem::path &source,
@@ -42,6 +39,8 @@ void copy_file_secure(const std::filesystem::path &source,
 
 void atomic_restore_file(const std::filesystem::path &backup,
                          const std::filesystem::path &target,
+                         std::string_view backup_description = "backup",
+                         std::string_view target_description = "rollback target",
                          std::string_view temporary_suffix = ".rollback");
 
 void remove_regular_file_secure(const std::filesystem::path &target,
