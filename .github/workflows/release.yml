@@ -1,17 +1,131 @@
-name: Release archive
+name: Release
+
 on:
   push:
-    tags: ['v*']
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
 permissions:
   contents: write
+  id-token: write
+  attestations: write
+
+env:
+  RELEASE_GPG_PRIVATE_KEY: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
+  RELEASE_GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+
 jobs:
-  archive:
-    runs-on: ubuntu-latest
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-24.04
+
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - name: Build reproducible source archive
-        run: scripts/create-release-tarball "${GITHUB_REF_NAME#v}" "$PWD/limine-manager-${GITHUB_REF_NAME#v}.tar.gz"
-      - uses: softprops/action-gh-release@v2
+      - name: Checkout tag
+        uses: actions/checkout@v4
         with:
-          files: limine-manager-*.tar.gz
+          fetch-depth: 0
+
+      - name: Resolve and validate version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag_version="${GITHUB_REF_NAME#v}"
+          project_version=$(sed -n \
+            's/^project(limine-manager VERSION \([^ ]*\).*/\1/p' \
+            CMakeLists.txt)
+
+          if [[ -z $project_version ]]; then
+              echo "Unable to determine the version from CMakeLists.txt" >&2
+              exit 1
+          fi
+
+          if [[ $tag_version != "$project_version" ]]; then
+              printf 'Tag version %s does not match project version %s\n' \
+                  "$tag_version" "$project_version" >&2
+              exit 1
+          fi
+
+          echo "version=$project_version" >> "$GITHUB_OUTPUT"
+          echo "archive=limine-manager-$project_version.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "sbom=limine-manager-$project_version.spdx.json" >> "$GITHUB_OUTPUT"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++
+
+      - name: Build and test release sources
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build build
+          ctest --test-dir build --output-on-failure
+
+      - name: Build reproducible source archives
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARCHIVE: ${{ steps.version.outputs.archive }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          scripts/create-release-tarball "$VERSION" "dist/$ARCHIVE"
+          scripts/create-release-tarball "$VERSION" "dist/$ARCHIVE.rebuilt"
+
+          if ! cmp --silent "dist/$ARCHIVE" "dist/$ARCHIVE.rebuilt"; then
+              echo "Release archive is not reproducible" >&2
+              sha256sum "dist/$ARCHIVE" "dist/$ARCHIVE.rebuilt" >&2
+              exit 1
+          fi
+
+          rm "dist/$ARCHIVE.rebuilt"
+
+      - name: Generate SPDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: dist/${{ steps.version.outputs.sbom }}
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum "${{ steps.version.outputs.archive }}" "${{ steps.version.outputs.sbom }}" > SHA256SUMS
+
+      - name: Sign release assets with GPG
+        if: env.RELEASE_GPG_PRIVATE_KEY != ''
+        working-directory: dist
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          printf '%s' "$RELEASE_GPG_PRIVATE_KEY" | gpg --batch --import
+
+          for asset in \
+              "${{ steps.version.outputs.archive }}" \
+              "${{ steps.version.outputs.sbom }}" \
+              SHA256SUMS; do
+              gpg --batch --yes --pinentry-mode loopback \
+                  --passphrase "$RELEASE_GPG_PASSPHRASE" \
+                  --armor --detach-sign "$asset"
+          done
+
+      - name: Attest release archive provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/${{ steps.version.outputs.archive }}
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          files: |
+            dist/${{ steps.version.outputs.archive }}
+            dist/${{ steps.version.outputs.sbom }}
+            dist/SHA256SUMS
+            dist/*.asc
