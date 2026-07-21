@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-mapfile -d '' files < <(find "$root/include" "$root/src" "$root/tests" -type f \( -name '*.cpp' -o -name '*.hpp' \) -print0)
-((${#files[@]})) && clang-format --dry-run --Werror "${files[@]}"
+clang_format=${CLANG_FORMAT:-clang-format}
+
+mapfile -d '' files < <(
+    find "$root/include" "$root/src" "$root/tests" \
+        -type f \( -name '*.cpp' -o -name '*.hpp' \) -print0
+)
+
+((${#files[@]})) && "$clang_format" --dry-run --Werror "${files[@]}"
