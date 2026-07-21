@@ -74,8 +74,7 @@ std::string normalize_mount_source(std::string source) {
     return source;
 }
 
-std::string sysfs_backing_device(const FileSystem &filesystem,
-                                   const std::string &mounted_root) {
+std::string sysfs_backing_device(const FileSystem &filesystem, const std::string &mounted_root) {
     const auto canonical_mapper = filesystem.canonical(mounted_root);
     const auto mapper_device = canonical_mapper.filename();
     if (mapper_device.empty())
@@ -112,10 +111,10 @@ bool uses_sd_encrypt(const FileSystem &filesystem, const std::filesystem::path &
     if (hooks == std::string::npos)
         return false;
     const auto end = text.find('\n', hooks);
-    const auto line = text.substr(hooks, end == std::string::npos ? std::string::npos : end - hooks);
+    const auto line =
+        text.substr(hooks, end == std::string::npos ? std::string::npos : end - hooks);
     return line.find("sd-encrypt") != std::string::npos;
 }
-
 
 void collect_named_files(const FileSystem &filesystem, const std::filesystem::path &directory,
                          std::string_view filename, std::vector<std::filesystem::path> &matches,
@@ -131,8 +130,8 @@ void collect_named_files(const FileSystem &filesystem, const std::filesystem::pa
 }
 
 std::filesystem::path discover_limine_config(const FileSystem &filesystem,
-                                              const std::filesystem::path &configured,
-                                              const std::filesystem::path &boot_mount) {
+                                             const std::filesystem::path &configured,
+                                             const std::filesystem::path &boot_mount) {
     if (filesystem.is_regular_file(configured))
         return configured;
     std::vector<std::filesystem::path> matches;
@@ -153,10 +152,9 @@ std::filesystem::path discover_limine_efi(const FileSystem &filesystem,
                                           const std::filesystem::path &configured) {
     if (!configured.empty() && filesystem.is_regular_file(configured))
         return configured;
-    const std::vector<std::filesystem::path> candidates{
-        boot_mount / "EFI/BOOT/BOOTX64.EFI",
-        boot_mount / "EFI/limine/limine_x64.efi",
-        boot_mount / "limine_x64.efi"};
+    const std::vector<std::filesystem::path> candidates{boot_mount / "EFI/BOOT/BOOTX64.EFI",
+                                                        boot_mount / "EFI/limine/limine_x64.efi",
+                                                        boot_mount / "limine_x64.efi"};
     for (const auto &candidate : candidates) {
         if (filesystem.is_regular_file(candidate))
             return candidate;
@@ -191,7 +189,8 @@ SecureBootInfo detect_secure_boot(const ProcessRunner &runner, const FileSystem 
     }
     info.limine_available = runner.run({"limine", "--version"}).exit_code == 0;
     info.sbattach_available = runner.run({"sbattach", "--help"}).exit_code == 0;
-    info.efi_executable = discover_limine_efi(filesystem, profile.boot_mount, profile.limine_efi_executable);
+    info.efi_executable =
+        discover_limine_efi(filesystem, profile.boot_mount, profile.limine_efi_executable);
     if (!info.efi_executable.empty() && info.sbctl_available) {
         const auto verify = runner.run({"sbctl", "verify", info.efi_executable.string()});
         info.efi_signature_detail = verify.output;
@@ -248,7 +247,8 @@ SystemInfo SystemDetector::detect() const {
     info.boot_target = mount_field(runner_, profile_.boot_mount, "TARGET");
     info.boot_source = mount_field(runner_, profile_.boot_mount, "SOURCE");
     info.boot_fstype = mount_field(runner_, profile_.boot_mount, "FSTYPE");
-    info.limine_config = discover_limine_config(filesystem_, profile_.limine_config, profile_.boot_mount);
+    info.limine_config =
+        discover_limine_config(filesystem_, profile_.limine_config, profile_.boot_mount);
     info.kernel_cmdline_file = profile_.kernel_cmdline_file;
     info.kernels =
         KernelDiscovery(filesystem_, {profile_.boot_mount, profile_.modules_root, profile_.cpuinfo})
@@ -263,8 +263,8 @@ SystemInfo SystemDetector::detect() const {
     const auto mounted_root = normalize_mount_source(info.root_source);
     const auto block_type = optional_command(
         runner_, {"lsblk", "--noheadings", "--raw", "--output", "TYPE", mounted_root});
-    info.root_encrypted = block_type.empty() ? mounted_root.starts_with("/dev/mapper/")
-                                             : block_type == "crypt";
+    info.root_encrypted =
+        block_type.empty() ? mounted_root.starts_with("/dev/mapper/") : block_type == "crypt";
 
     if (info.root_encrypted) {
         info.root_mapper_name = std::filesystem::path(mounted_root).filename().string();
@@ -293,7 +293,8 @@ SystemInfo SystemDetector::detect() const {
 
     info.kernel_cmdline_text = trim(filesystem_.read_text(info.kernel_cmdline_file));
     if (info.kernel_cmdline_text.empty()) {
-        info.kernel_cmdline_text = generate_cmdline(info, uses_sd_encrypt(filesystem_, profile_.mkinitcpio_config));
+        info.kernel_cmdline_text =
+            generate_cmdline(info, uses_sd_encrypt(filesystem_, profile_.mkinitcpio_config));
         info.kernel_cmdline_generated = true;
     }
     info.kernel_cmdline = domain::KernelCommandLine::parse(info.kernel_cmdline_text);

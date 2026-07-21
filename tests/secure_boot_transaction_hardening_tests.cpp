@@ -23,7 +23,7 @@ void write_text(const std::filesystem::path &path, const std::string &content) {
 }
 
 mode_t mode_of(const std::filesystem::path &path) {
-    struct stat metadata {};
+    struct stat metadata{};
     const int status = ::stat(path.c_str(), &metadata);
     assert(status == 0);
     return metadata.st_mode & 07777;
@@ -31,8 +31,7 @@ mode_t mode_of(const std::filesystem::path &path) {
 
 std::filesystem::path test_root(const std::string &name) {
     return std::filesystem::temp_directory_path() /
-           ("limine-manager-transaction-hardening-" + name + "-" +
-            std::to_string(::getpid()));
+           ("limine-manager-transaction-hardening-" + name + "-" + std::to_string(::getpid()));
 }
 
 void atomic_restore_preserves_metadata_test() {
@@ -87,8 +86,8 @@ void symlink_backup_is_rejected_but_efi_is_restored_test() {
     try {
         transaction.rollback();
     } catch (const std::runtime_error &error) {
-        rejected = std::string(error.what()).find("unsafe configuration backup") !=
-                   std::string::npos;
+        rejected =
+            std::string(error.what()).find("unsafe configuration backup") != std::string::npos;
     }
 
     assert(rejected);

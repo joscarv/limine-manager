@@ -11,9 +11,8 @@ namespace limine_manager::application {
 
 class SecureBootTransaction {
   public:
-    explicit SecureBootTransaction(
-        std::filesystem::path efi_image,
-        infrastructure::RollbackErrorReporter error_reporter = {});
+    explicit SecureBootTransaction(std::filesystem::path efi_image,
+                                   infrastructure::RollbackErrorReporter error_reporter = {});
     ~SecureBootTransaction() noexcept;
 
     SecureBootTransaction(const SecureBootTransaction &) = delete;

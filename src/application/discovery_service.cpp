@@ -1,8 +1,8 @@
 #include "limine_manager/application/discovery_service.hpp"
 
+#include "limine_manager/application/snapshot_selector.hpp"
 #include "limine_manager/infrastructure/snapper_client.hpp"
 #include "limine_manager/infrastructure/system_detector.hpp"
-#include "limine_manager/application/snapshot_selector.hpp"
 
 namespace limine_manager::application {
 

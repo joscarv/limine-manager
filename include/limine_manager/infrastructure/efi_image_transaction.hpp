@@ -22,9 +22,15 @@ class EfiImageTransaction {
     void commit();
     void rollback();
 
-    [[nodiscard]] const std::filesystem::path &image() const noexcept { return image_; }
-    [[nodiscard]] const std::filesystem::path &backup() const noexcept { return backup_; }
-    [[nodiscard]] bool active() const noexcept { return active_; }
+    [[nodiscard]] const std::filesystem::path &image() const noexcept {
+        return image_;
+    }
+    [[nodiscard]] const std::filesystem::path &backup() const noexcept {
+        return backup_;
+    }
+    [[nodiscard]] bool active() const noexcept {
+        return active_;
+    }
 
   private:
     void report_destructor_error(std::string_view message) const noexcept;

@@ -49,10 +49,9 @@ void atomic_restore_preserves_content_and_mode_test() {
     write_text(target, "changed\n");
     ::chmod(backup.c_str(), 0640);
 
-    atomic_restore_file(backup, target, "configuration backup",
-                        "configuration rollback target");
+    atomic_restore_file(backup, target, "configuration backup", "configuration rollback target");
 
-    struct stat metadata {};
+    struct stat metadata{};
     assert(::stat(target.c_str(), &metadata) == 0);
     assert(read_text(target) == "original\n");
     assert((metadata.st_mode & 0777) == 0640);
@@ -77,8 +76,8 @@ void symlink_backup_is_rejected_test() {
         atomic_restore_file(backup, target, "configuration backup",
                             "configuration rollback target");
     } catch (const std::runtime_error &error) {
-        rejected = std::string(error.what()).find("unsafe configuration backup") !=
-                   std::string::npos;
+        rejected =
+            std::string(error.what()).find("unsafe configuration backup") != std::string::npos;
     }
 
     assert(rejected);

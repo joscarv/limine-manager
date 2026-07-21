@@ -20,10 +20,10 @@ struct StatusReport {
 
 class StatusService {
   public:
-    [[nodiscard]] StatusReport
-    build(const model::SystemModel &model, const domain::ValidationReport &validation,
-          const ChangePlan &plan, const std::vector<BackupInfo> &backups,
-          const config::AppConfig &config) const;
+    [[nodiscard]] StatusReport build(const model::SystemModel &model,
+                                     const domain::ValidationReport &validation,
+                                     const ChangePlan &plan, const std::vector<BackupInfo> &backups,
+                                     const config::AppConfig &config) const;
 };
 
 } // namespace limine_manager::application

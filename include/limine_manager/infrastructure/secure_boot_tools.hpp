@@ -32,8 +32,8 @@ class SecureBootTools {
   public:
     explicit SecureBootTools(const ProcessRunner &runner) : runner_(runner) {}
 
-    [[nodiscard]] SecureBootUpdateResult
-    update_limine_image(const std::filesystem::path &efi, const Blake2bDigest &digest) const;
+    [[nodiscard]] SecureBootUpdateResult update_limine_image(const std::filesystem::path &efi,
+                                                             const Blake2bDigest &digest) const;
 
   private:
     const ProcessRunner &runner_;

@@ -24,12 +24,11 @@ void write_text(const std::filesystem::path &path, const std::string &value) {
 
 std::filesystem::path test_root(const std::string &name) {
     return std::filesystem::temp_directory_path() /
-           ("limine-manager-efi-transaction-" + name + "-" +
-            std::to_string(::getpid()));
+           ("limine-manager-efi-transaction-" + name + "-" + std::to_string(::getpid()));
 }
 
 mode_t file_mode(const std::filesystem::path &path) {
-    struct stat metadata {};
+    struct stat metadata{};
     assert(::stat(path.c_str(), &metadata) == 0);
     return metadata.st_mode & 07777;
 }

@@ -73,8 +73,8 @@ void rollback_each_secure_boot_stage_test() {
         write_text(config_path, "timeout: 5\n");
         write_text(efi_path, "original EFI\n");
 
-        application::ChangePlan plan{application::ChangeKind::update, config_path,
-                                     "timeout: 5\n", "timeout: 10\n"};
+        application::ChangePlan plan{application::ChangeKind::update, config_path, "timeout: 5\n",
+                                     "timeout: 10\n"};
         MutatingProcessRunner runner(efi_path, failure);
         application::SecureBootApplyService service(runner);
 
@@ -144,8 +144,8 @@ void rollback_between_application_stages_test() {
         write_text(config_path, "timeout: 5\n");
         write_text(efi_path, "original EFI\n");
 
-        application::ChangePlan plan{application::ChangeKind::update, config_path,
-                                     "timeout: 5\n", "timeout: 10\n"};
+        application::ChangePlan plan{application::ChangeKind::update, config_path, "timeout: 5\n",
+                                     "timeout: 10\n"};
         MutatingProcessRunner runner(efi_path, 0);
         application::SecureBootApplyService service(runner);
         application::testing::inject_failure_once(failure_points.at(index));
@@ -179,8 +179,8 @@ void failure_injection_is_consumed_once_test() {
     write_text(config_path, "timeout: 5\n");
     write_text(efi_path, "original EFI\n");
 
-    application::ChangePlan plan{application::ChangeKind::update, config_path,
-                                 "timeout: 5\n", "timeout: 10\n"};
+    application::ChangePlan plan{application::ChangeKind::update, config_path, "timeout: 5\n",
+                                 "timeout: 10\n"};
     MutatingProcessRunner runner(efi_path, 0);
     application::SecureBootApplyService service(runner);
 
@@ -217,8 +217,8 @@ void successful_commit_test() {
     write_text(config_path, "timeout: 5\n");
     write_text(efi_path, "original EFI\n");
 
-    application::ChangePlan plan{application::ChangeKind::update, config_path,
-                                 "timeout: 5\n", "timeout: 10\n"};
+    application::ChangePlan plan{application::ChangeKind::update, config_path, "timeout: 5\n",
+                                 "timeout: 10\n"};
     MutatingProcessRunner runner(efi_path, 0);
     application::SecureBootApplyService service(runner);
 

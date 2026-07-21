@@ -51,8 +51,8 @@ SecureBootApplyService::SecureBootApplyService(
       rollback_error_reporter_(std::move(rollback_error_reporter)) {}
 
 ApplyResult SecureBootApplyService::apply(const ChangePlan &plan,
-                                           const infrastructure::SystemInfo &system,
-                                           const config::AppConfig &config) const {
+                                          const infrastructure::SystemInfo &system,
+                                          const config::AppConfig &config) const {
     if (!plan.has_changes())
         return {false, plan.target, {}};
     if (!system.secure_boot.enabled || !config.secure_boot_protect_config)
@@ -61,8 +61,7 @@ ApplyResult SecureBootApplyService::apply(const ChangePlan &plan,
         throw std::runtime_error(
             "Secure Boot is enabled but the active Limine EFI executable is unknown");
 
-    SecureBootTransaction transaction{system.secure_boot.efi_executable,
-                                      rollback_error_reporter_};
+    SecureBootTransaction transaction{system.secure_boot.efi_executable, rollback_error_reporter_};
 
     try {
         auto result = ApplyService{config.automation_runtime_directory}.apply(plan);
@@ -84,8 +83,7 @@ ApplyResult SecureBootApplyService::apply(const ChangePlan &plan,
             transaction.rollback();
         } catch (const std::exception &rollback_error) {
             throw std::runtime_error(exception_message(original_error) +
-                                     "; automatic rollback also failed: " +
-                                     rollback_error.what());
+                                     "; automatic rollback also failed: " + rollback_error.what());
         }
         std::rethrow_exception(original_error);
     }

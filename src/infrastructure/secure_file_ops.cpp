@@ -48,8 +48,7 @@ int UniqueFd::get() const noexcept {
     return fd_;
 }
 
-[[noreturn]] void throw_errno(const std::string &operation,
-                               const std::filesystem::path &path) {
+[[noreturn]] void throw_errno(const std::string &operation, const std::filesystem::path &path) {
     throw std::runtime_error(operation + " '" + path.string() + "': " + std::strerror(errno));
 }
 
@@ -84,11 +83,10 @@ std::string read_all(int fd, const std::filesystem::path &path) {
 }
 
 std::filesystem::path unique_sibling_path(const std::filesystem::path &target,
-                                           std::string_view suffix) {
+                                          std::string_view suffix) {
     const auto ticks = std::chrono::steady_clock::now().time_since_epoch().count();
-    return target.parent_path() /
-           (target.filename().string() + std::string(suffix) + "." +
-            std::to_string(::getpid()) + "." + std::to_string(ticks));
+    return target.parent_path() / (target.filename().string() + std::string(suffix) + "." +
+                                   std::to_string(::getpid()) + "." + std::to_string(ticks));
 }
 
 void fsync_directory(const std::filesystem::path &directory) {
@@ -101,10 +99,8 @@ void fsync_directory(const std::filesystem::path &directory) {
         throw_errno("cannot fsync directory", path);
 }
 
-void copy_file_secure(const std::filesystem::path &source,
-                      const std::filesystem::path &destination,
-                      const struct stat &metadata,
-                      std::string_view source_description,
+void copy_file_secure(const std::filesystem::path &source, const std::filesystem::path &destination,
+                      const struct stat &metadata, std::string_view source_description,
                       std::string_view destination_description) {
     UniqueFd input(::open(source.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
     if (input.get() < 0)
@@ -133,19 +129,17 @@ void copy_file_secure(const std::filesystem::path &source,
     }
 }
 
-void atomic_restore_file(const std::filesystem::path &backup,
-                         const std::filesystem::path &target,
-                         std::string_view backup_description,
-                         std::string_view target_description,
+void atomic_restore_file(const std::filesystem::path &backup, const std::filesystem::path &target,
+                         std::string_view backup_description, std::string_view target_description,
                          std::string_view temporary_suffix) {
-    struct stat backup_metadata {};
+    struct stat backup_metadata{};
     if (::lstat(backup.c_str(), &backup_metadata) < 0)
         throw_errno("cannot inspect " + std::string(backup_description), backup);
     if (S_ISLNK(backup_metadata.st_mode) || !S_ISREG(backup_metadata.st_mode))
         throw std::runtime_error("unsafe " + std::string(backup_description) + ": " +
                                  backup.string());
 
-    struct stat target_metadata {};
+    struct stat target_metadata{};
     if (::lstat(target.c_str(), &target_metadata) == 0) {
         if (S_ISLNK(target_metadata.st_mode) || !S_ISREG(target_metadata.st_mode))
             throw std::runtime_error("unsafe " + std::string(target_description) + ": " +
@@ -168,9 +162,8 @@ void atomic_restore_file(const std::filesystem::path &backup,
     }
 }
 
-void remove_regular_file_secure(const std::filesystem::path &target,
-                                std::string_view description) {
-    struct stat metadata {};
+void remove_regular_file_secure(const std::filesystem::path &target, std::string_view description) {
+    struct stat metadata{};
     if (::lstat(target.c_str(), &metadata) < 0) {
         if (errno == ENOENT)
             return;

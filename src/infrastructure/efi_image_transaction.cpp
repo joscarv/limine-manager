@@ -16,12 +16,12 @@ namespace {
 std::filesystem::path backup_name(const std::filesystem::path &image) {
     const auto ticks = std::chrono::steady_clock::now().time_since_epoch().count();
     return std::filesystem::temp_directory_path() /
-           ("limine-manager-" + image.filename().string() + "." +
-            std::to_string(::getpid()) + "." + std::to_string(ticks) + ".bak");
+           ("limine-manager-" + image.filename().string() + "." + std::to_string(::getpid()) + "." +
+            std::to_string(ticks) + ".bak");
 }
 
 struct stat inspect_image(const std::filesystem::path &image) {
-    struct stat metadata {};
+    struct stat metadata{};
     if (::lstat(image.c_str(), &metadata) < 0)
         throw_errno("cannot inspect EFI image", image);
     if (S_ISLNK(metadata.st_mode) || !S_ISREG(metadata.st_mode))

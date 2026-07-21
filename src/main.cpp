@@ -7,9 +7,9 @@
 #include "limine_manager/application/refresh_service.hpp"
 #include "limine_manager/application/rollback_planner.hpp"
 #include "limine_manager/application/rollback_service.hpp"
-#include "limine_manager/application/validation_service.hpp"
-#include "limine_manager/application/status_service.hpp"
 #include "limine_manager/application/secure_boot_apply_service.hpp"
+#include "limine_manager/application/status_service.hpp"
+#include "limine_manager/application/validation_service.hpp"
 #include "limine_manager/config/config_loader.hpp"
 #include "limine_manager/config/theme.hpp"
 #include "limine_manager/infrastructure/btrfs_client.hpp"
@@ -54,7 +54,8 @@ void usage(std::ostream &output) {
               "  themes          List built-in visual themes\n"
               "  preview         Render the generated limine.conf\n"
               "  show-config     Print the effective manager configuration\n"
-              "  status          Show complete system, boot, kernel, snapshot, and configuration status\n"
+              "  status          Show complete system, boot, kernel, snapshot, and configuration "
+              "status\n"
               "  plan            Classify the pending change\n"
               "  diff            Show a unified diff\n"
               "  dry-run         Show the plan and diff without writing\n"
@@ -544,7 +545,8 @@ int main(int argc, char **argv) {
 
             application::PreviewService preview;
             render::LimineRenderer renderer;
-            const auto generated = renderer.render(preview.build(system, menu_snapshots, loaded.value));
+            const auto generated =
+                renderer.render(preview.build(system, menu_snapshots, loaded.value));
             application::ChangePlanner planner(filesystem);
             const auto plan = planner.build(system.limine_config, generated);
             application::SecureBootApplyService apply_service(runner, rollback_reporter);
@@ -587,12 +589,11 @@ int main(int argc, char **argv) {
 
         if (cli->command == "status") {
             application::ChangePlanner status_planner(filesystem);
-            const auto status_plan =
-                status_planner.build(system.limine_config, generated);
+            const auto status_plan = status_planner.build(system.limine_config, generated);
             const auto backups = backup_service.list(status_plan.target);
             application::StatusService status_service;
-            const auto status = status_service.build(discovered, report, status_plan, backups,
-                                                     loaded.value);
+            const auto status =
+                status_service.build(discovered, report, status_plan, backups, loaded.value);
             std::cout << status.text;
             if (!status.healthy)
                 return 1;

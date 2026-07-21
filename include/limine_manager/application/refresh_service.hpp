@@ -3,9 +3,9 @@
 #include "limine_manager/application/apply_service.hpp"
 #include "limine_manager/config/config.hpp"
 #include "limine_manager/infrastructure/filesystem.hpp"
+#include "limine_manager/infrastructure/process.hpp"
 #include "limine_manager/infrastructure/snapper_client.hpp"
 #include "limine_manager/infrastructure/system_detector.hpp"
-#include "limine_manager/infrastructure/process.hpp"
 
 #include <cstddef>
 

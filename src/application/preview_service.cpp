@@ -1,6 +1,6 @@
 #include "limine_manager/application/preview_service.hpp"
-#include "limine_manager/config/theme.hpp"
 #include "limine_manager/application/snapshot_selector.hpp"
+#include "limine_manager/config/theme.hpp"
 
 #include <algorithm>
 #include <unordered_map>
@@ -124,7 +124,8 @@ PreviewService::build(const infrastructure::SystemInfo &system,
             snapshot_node.add_child(domain::MenuNode::linux_entry(
                 kernel.display_name, description + " — " + kernel_comment(kernel),
                 {kernel.unified_kernel_image ? "efi" : "linux",
-                 limine_path(system.boot_mount, kernel.image, &system, !kernel.unified_kernel_image),
+                 limine_path(system.boot_mount, kernel.image, &system,
+                             !kernel.unified_kernel_image),
                  modules_for(kernel, system),
                  snapshot_cmdline(system.kernel_cmdline, config.snapshots_subvolume,
                                   snapshot.number)}));
