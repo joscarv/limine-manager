@@ -2,6 +2,7 @@
 
 #include "limine_manager/application/apply_service.hpp"
 #include "limine_manager/config/config.hpp"
+#include "limine_manager/infrastructure/efi_image_transaction.hpp"
 #include "limine_manager/infrastructure/process.hpp"
 #include "limine_manager/infrastructure/secure_boot_tools.hpp"
 #include "limine_manager/infrastructure/system_detector.hpp"
@@ -24,8 +25,11 @@ void clear_failure_injection() noexcept;
 
 class SecureBootApplyService {
   public:
-    explicit SecureBootApplyService(const infrastructure::ProcessRunner &runner)
-        : hasher_(runner), tools_(runner) {}
+    explicit SecureBootApplyService(
+        const infrastructure::ProcessRunner &runner,
+        infrastructure::RollbackErrorReporter rollback_error_reporter = {})
+        : hasher_(runner), tools_(runner),
+          rollback_error_reporter_(std::move(rollback_error_reporter)) {}
 
     [[nodiscard]] ApplyResult apply(const ChangePlan &plan,
                                     const infrastructure::SystemInfo &system,
@@ -34,6 +38,7 @@ class SecureBootApplyService {
   private:
     infrastructure::Blake2bHasher hasher_;
     infrastructure::SecureBootTools tools_;
+    infrastructure::RollbackErrorReporter rollback_error_reporter_;
 };
 
 } // namespace limine_manager::application
