@@ -3,9 +3,11 @@
 #include "limine_manager/application/secure_boot_transaction.hpp"
 
 #include <exception>
+#include <iostream>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace limine_manager::application {
 namespace {
@@ -29,6 +31,12 @@ std::string exception_message(const std::exception_ptr &error) {
     }
 }
 
+infrastructure::RollbackErrorReporter default_rollback_error_reporter() {
+    return [](std::string_view message) {
+        std::cerr << "[ERROR] " << message << '\n';
+    };
+}
+
 } // namespace
 
 namespace testing {
@@ -42,6 +50,14 @@ void clear_failure_injection() noexcept {
 }
 
 } // namespace testing
+
+SecureBootApplyService::SecureBootApplyService(
+    const infrastructure::ProcessRunner &runner,
+    infrastructure::RollbackErrorReporter rollback_error_reporter)
+    : hasher_(runner), tools_(runner),
+      rollback_error_reporter_(rollback_error_reporter
+                                   ? std::move(rollback_error_reporter)
+                                   : default_rollback_error_reporter()) {}
 
 ApplyResult SecureBootApplyService::apply(const ChangePlan &plan,
                                            const infrastructure::SystemInfo &system,
