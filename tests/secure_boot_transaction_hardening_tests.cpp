@@ -1,4 +1,5 @@
 #include "limine_manager/application/secure_boot_transaction.hpp"
+#include "limine_manager/infrastructure/secure_file_ops.hpp"
 
 #include <cassert>
 #include <filesystem>
@@ -127,11 +128,89 @@ void symlink_created_target_is_not_removed_test() {
     std::filesystem::remove_all(root);
 }
 
+void configuration_rollback_can_be_retried_without_repeating_efi_test() {
+    using namespace limine_manager;
+    using infrastructure::testing::SecureFileFailurePoint;
+
+    const auto root = test_root("retry-config");
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root);
+
+    const auto config = root / "limine.conf";
+    const auto backup = root / "limine.conf.bak";
+    const auto efi = root / "BOOTX64.EFI";
+    write_text(config, "new configuration\n");
+    write_text(backup, "original configuration\n");
+    write_text(efi, "original EFI\n");
+
+    application::SecureBootTransaction transaction(efi);
+    transaction.record_apply({true, config, backup});
+    write_text(efi, "modified EFI\n");
+
+    infrastructure::testing::inject_failure_once(SecureFileFailurePoint::before_rename);
+
+    bool first_attempt_failed = false;
+    try {
+        transaction.rollback();
+    } catch (const std::runtime_error &error) {
+        first_attempt_failed =
+            std::string(error.what()).find("injected secure file failure") != std::string::npos;
+    }
+
+    assert(first_attempt_failed);
+    assert(read_text(config) == "new configuration\n");
+    assert(read_text(efi) == "original EFI\n");
+
+    write_text(efi, "must not be rolled back again\n");
+    transaction.rollback();
+
+    assert(read_text(config) == "original configuration\n");
+    assert(read_text(efi) == "must not be rolled back again\n");
+    transaction.rollback();
+
+    std::filesystem::remove_all(root);
+}
+
+void efi_rollback_can_be_retried_test() {
+    using namespace limine_manager;
+    using infrastructure::testing::SecureFileFailurePoint;
+
+    const auto root = test_root("retry-efi");
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root);
+
+    const auto efi = root / "BOOTX64.EFI";
+    write_text(efi, "original EFI\n");
+
+    application::SecureBootTransaction transaction(efi);
+    write_text(efi, "modified EFI\n");
+    infrastructure::testing::inject_failure_once(SecureFileFailurePoint::before_rename);
+
+    bool first_attempt_failed = false;
+    try {
+        transaction.rollback();
+    } catch (const std::runtime_error &error) {
+        first_attempt_failed =
+            std::string(error.what()).find("injected secure file failure") != std::string::npos;
+    }
+
+    assert(first_attempt_failed);
+    assert(read_text(efi) == "modified EFI\n");
+
+    transaction.rollback();
+    assert(read_text(efi) == "original EFI\n");
+    transaction.rollback();
+
+    std::filesystem::remove_all(root);
+}
+
 } // namespace
 
 int main() {
     atomic_restore_preserves_metadata_test();
     symlink_backup_is_rejected_but_efi_is_restored_test();
     symlink_created_target_is_not_removed_test();
+    configuration_rollback_can_be_retried_without_repeating_efi_test();
+    efi_rollback_can_be_retried_test();
     return 0;
 }
