@@ -8,6 +8,20 @@
 
 namespace limine_manager::application {
 
+namespace testing {
+
+enum class SecureBootApplyFailurePoint {
+    after_config_apply,
+    after_digest,
+    after_efi_update,
+    before_commit,
+};
+
+void inject_failure_once(SecureBootApplyFailurePoint point) noexcept;
+void clear_failure_injection() noexcept;
+
+} // namespace testing
+
 class SecureBootApplyService {
   public:
     explicit SecureBootApplyService(const infrastructure::ProcessRunner &runner)
