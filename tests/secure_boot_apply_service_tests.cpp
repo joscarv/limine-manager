@@ -1,5 +1,6 @@
 #include "limine_manager/application/secure_boot_apply_service.hpp"
 
+#include <array>
 #include <cassert>
 #include <filesystem>
 #include <fstream>
@@ -120,6 +121,90 @@ void rollback_created_configuration_test() {
     std::filesystem::remove_all(root);
 }
 
+void rollback_between_application_stages_test() {
+    using namespace limine_manager;
+    using application::testing::SecureBootApplyFailurePoint;
+
+    constexpr std::array failure_points{
+        SecureBootApplyFailurePoint::after_config_apply,
+        SecureBootApplyFailurePoint::after_digest,
+        SecureBootApplyFailurePoint::after_efi_update,
+        SecureBootApplyFailurePoint::before_commit,
+    };
+
+    for (std::size_t index = 0; index < failure_points.size(); ++index) {
+        const auto root = std::filesystem::temp_directory_path() /
+                          ("limine-manager-secure-checkpoint-" + std::to_string(::getpid()) + "-" +
+                           std::to_string(index));
+        std::filesystem::remove_all(root);
+        std::filesystem::create_directories(root);
+
+        const auto config_path = root / "limine.conf";
+        const auto efi_path = root / "BOOTX64.EFI";
+        write_text(config_path, "timeout: 5\n");
+        write_text(efi_path, "original EFI\n");
+
+        application::ChangePlan plan{application::ChangeKind::update, config_path,
+                                     "timeout: 5\n", "timeout: 10\n"};
+        MutatingProcessRunner runner(efi_path, 0);
+        application::SecureBootApplyService service(runner);
+        application::testing::inject_failure_once(failure_points.at(index));
+
+        bool injected_failure_seen = false;
+        try {
+            (void)service.apply(plan, system_for(efi_path), config_for(root / "run"));
+        } catch (const std::runtime_error &error) {
+            injected_failure_seen =
+                std::string(error.what()).find("injected Secure Boot apply failure") !=
+                std::string::npos;
+        }
+        application::testing::clear_failure_injection();
+
+        assert(injected_failure_seen);
+        assert(read_text(config_path) == "timeout: 5\n");
+        assert(read_text(efi_path) == "original EFI\n");
+        std::filesystem::remove_all(root);
+    }
+}
+
+void failure_injection_is_consumed_once_test() {
+    using namespace limine_manager;
+    const auto root = std::filesystem::temp_directory_path() /
+                      ("limine-manager-secure-once-" + std::to_string(::getpid()));
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root);
+
+    const auto config_path = root / "limine.conf";
+    const auto efi_path = root / "BOOTX64.EFI";
+    write_text(config_path, "timeout: 5\n");
+    write_text(efi_path, "original EFI\n");
+
+    application::ChangePlan plan{application::ChangeKind::update, config_path,
+                                 "timeout: 5\n", "timeout: 10\n"};
+    MutatingProcessRunner runner(efi_path, 0);
+    application::SecureBootApplyService service(runner);
+
+    application::testing::inject_failure_once(
+        application::testing::SecureBootApplyFailurePoint::after_config_apply);
+    bool first_failed = false;
+    try {
+        (void)service.apply(plan, system_for(efi_path), config_for(root / "run"));
+    } catch (const std::runtime_error &) {
+        first_failed = true;
+    }
+    assert(first_failed);
+    assert(read_text(config_path) == "timeout: 5\n");
+    assert(read_text(efi_path) == "original EFI\n");
+
+    const auto result = service.apply(plan, system_for(efi_path), config_for(root / "run"));
+    assert(result.changed);
+    assert(read_text(config_path) == "timeout: 10\n");
+    assert(read_text(efi_path) == "modified EFI\n");
+
+    application::testing::clear_failure_injection();
+    std::filesystem::remove_all(root);
+}
+
 void successful_commit_test() {
     using namespace limine_manager;
     const auto root = std::filesystem::temp_directory_path() /
@@ -151,6 +236,8 @@ void successful_commit_test() {
 int main() {
     rollback_each_secure_boot_stage_test();
     rollback_created_configuration_test();
+    rollback_between_application_stages_test();
+    failure_injection_is_consumed_once_test();
     successful_commit_test();
     return 0;
 }
