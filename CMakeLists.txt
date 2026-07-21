@@ -109,6 +109,7 @@ if(LIMINE_MANAGER_BUILD_TESTS)
     limine_manager_add_test(limine_manager_secure_boot_tools_tests tests/secure_boot_tools_tests.cpp)
     limine_manager_add_test(limine_manager_efi_image_transaction_tests tests/efi_image_transaction_tests.cpp)
     limine_manager_add_test(limine_manager_secure_boot_apply_service_tests tests/secure_boot_apply_service_tests.cpp)
+    limine_manager_add_test(limine_manager_secure_boot_transaction_hardening_tests tests/secure_boot_transaction_hardening_tests.cpp)
 endif()
 
 add_custom_target(format
