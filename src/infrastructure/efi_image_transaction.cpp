@@ -3,6 +3,7 @@
 #include "limine_manager/infrastructure/secure_file_ops.hpp"
 
 #include <chrono>
+#include <exception>
 #include <stdexcept>
 #include <string>
 #include <sys/stat.h>
@@ -30,8 +31,10 @@ struct stat inspect_image(const std::filesystem::path &image) {
 
 } // namespace
 
-EfiImageTransaction::EfiImageTransaction(std::filesystem::path image)
-    : image_(std::move(image)), backup_(backup_name(image_)) {
+EfiImageTransaction::EfiImageTransaction(std::filesystem::path image,
+                                         RollbackErrorReporter error_reporter)
+    : image_(std::move(image)), backup_(backup_name(image_)),
+      error_reporter_(std::move(error_reporter)) {
     const auto metadata = inspect_image(image_);
     try {
         copy_file_secure(image_, backup_, metadata, "EFI image", "EFI image backup");
@@ -42,11 +45,24 @@ EfiImageTransaction::EfiImageTransaction(std::filesystem::path image)
     }
 }
 
-EfiImageTransaction::~EfiImageTransaction() {
+EfiImageTransaction::~EfiImageTransaction() noexcept {
     if (!active_)
         return;
     try {
         rollback();
+    } catch (const std::exception &error) {
+        report_destructor_error(std::string("EFI image rollback failed during destruction: ") +
+                                error.what());
+    } catch (...) {
+        report_destructor_error("EFI image rollback failed during destruction: unknown error");
+    }
+}
+
+void EfiImageTransaction::report_destructor_error(std::string_view message) const noexcept {
+    if (!error_reporter_)
+        return;
+    try {
+        error_reporter_(message);
     } catch (...) {
     }
 }
