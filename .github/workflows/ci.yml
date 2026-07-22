@@ -45,22 +45,26 @@ jobs:
 
   quality:
     runs-on: ubuntu-24.04
-    env:
-      CLANG_FORMAT: clang-format-18
+    container: archlinux:base-devel
     steps:
       - uses: actions/checkout@v4
       - name: Install quality tools
-        run: >-
-          sudo apt-get update && sudo apt-get install -y
-          cmake ninja-build clang-18 clang-format-18 clang-tidy-18 cppcheck
+        run: pacman -Syu --noconfirm cmake ninja clang cppcheck git
+      - name: Show tool versions
+        run: |
+          clang-format --version
+          clang-tidy --version
+          cppcheck --version
       - name: Format check
+        env:
+          CLANG_FORMAT: clang-format
         run: cmake -S . -B build -G Ninja && cmake --build build --target format-check
       - name: clang-tidy
-        env: { CC: clang-18, CXX: clang++-18 }
+        env: { CC: clang, CXX: clang++ }
         run: >-
           cmake -S . -B tidy -G Ninja
           -DLIMINE_MANAGER_ENABLE_CLANG_TIDY=ON
-          -DLIMINE_MANAGER_CLANG_TIDY=clang-tidy-18
+          -DLIMINE_MANAGER_CLANG_TIDY=clang-tidy
           && cmake --build tidy
       - name: cppcheck
         run: >-
