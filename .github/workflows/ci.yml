@@ -16,7 +16,7 @@ jobs:
         build_type: [Debug, Release]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake ninja-build ${{ matrix.compiler }}
       - name: Configure
@@ -32,7 +32,7 @@ jobs:
   sanitizers:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build g++
       - name: Configure ASan and UBSan
         env: { CC: gcc, CXX: g++ }
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-24.04
     container: archlinux:base-devel
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install quality tools
         run: pacman -Syu --noconfirm cmake ninja clang cppcheck git
       - name: Show tool versions
@@ -101,7 +101,7 @@ jobs:
   coverage:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build g++ lcov
       - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLIMINE_MANAGER_ENABLE_COVERAGE=ON
       - run: cmake --build build
@@ -116,7 +116,7 @@ jobs:
     runs-on: ubuntu-24.04
     container: archlinux:base-devel
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: pacman -Syu --noconfirm cmake ninja git util-linux snapper
       - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
       - run: cmake --build build && ctest --test-dir build --output-on-failure
