@@ -10,7 +10,8 @@ Before creating a release:
 
 1. Update the project version in `CMakeLists.txt`.
 2. Ensure the branch is fully synchronized and CI is green.
-3. Run the local validation commands:
+3. Configure the repository signing secrets described in [Release signing key](#release-signing-key).
+4. Run the local validation commands:
 
 ```bash
 rm -rf build
@@ -20,7 +21,7 @@ ctest --test-dir build --output-on-failure
 cmake --build build --target format-check
 ```
 
-4. Verify that the source archive is reproducible:
+5. Verify that the source archive is reproducible:
 
 ```bash
 version=$(sed -n 's/^project(limine-manager VERSION \([^ ]*\).*/\1/p' CMakeLists.txt)
@@ -40,6 +41,9 @@ A manual run:
 - does not require a release tag;
 - does not create a GitHub Release;
 - does not create a provenance attestation;
+- signs the assets when both signing secrets are configured;
+- may run unsigned when neither signing secret is configured;
+- fails when only one of the two signing secrets is configured;
 - uploads the generated release files as the `release-validation-VERSION` artifact;
 - retains that artifact for seven days.
 
@@ -51,45 +55,108 @@ bash scripts/verify-release-assets /path/to/release-validation-VERSION
 
 The script always validates `SHA256SUMS`. When `.asc` files are present, it also verifies every detached GPG signature with the keys available in the local GPG keyring.
 
+## Release signing key
+
+Tagged releases require a dedicated GPG key in GitHub Actions. The workflow refuses to publish an unsigned release.
+
+Create a dedicated key instead of reusing a general-purpose personal key:
+
+```bash
+gpg --quick-generate-key \
+    "limine-manager Release Signing <YOUR_EMAIL>" \
+    ed25519 sign 2y
+```
+
+List the key and copy its full fingerprint:
+
+```bash
+gpg --list-secret-keys --keyid-format LONG --with-fingerprint
+```
+
+Export the public key for distribution:
+
+```bash
+gpg --armor --export KEY_FINGERPRINT > limine-manager-release-key.asc
+```
+
+Export the private key only for loading it into GitHub Actions:
+
+```bash
+umask 077
+gpg --armor --export-secret-keys KEY_FINGERPRINT > release-private-key.asc
+```
+
+Configure these repository secrets under **Settings → Secrets and variables → Actions**:
+
+- `RELEASE_GPG_PRIVATE_KEY`: the complete ASCII-armored contents of `release-private-key.asc`;
+- `RELEASE_GPG_PASSPHRASE`: the passphrase protecting the dedicated signing key.
+
+Both secrets must be present together. A tagged release fails immediately when they are missing or incomplete.
+
+After storing the private key in GitHub, securely remove the exported private-key file:
+
+```bash
+shred -u release-private-key.asc
+```
+
+Do not commit private key material or its passphrase. The public key may be published in the repository, attached to releases, or distributed through another trusted channel.
+
+The workflow imports the private key into an isolated temporary GPG home, obtains its full fingerprint, signs each asset explicitly with that fingerprint, verifies the resulting signatures, and discards the temporary keyring with the runner.
+
+## Validate signing before publishing
+
+After configuring the secrets, execute the `Release` workflow manually.
+
+The log should include:
+
+```text
+Imported release-signing key: FULL_FINGERPRINT
+```
+
+The uploaded validation artifact should contain:
+
+```text
+limine-manager-VERSION.tar.gz
+limine-manager-VERSION.tar.gz.asc
+limine-manager-VERSION.spdx.json
+limine-manager-VERSION.spdx.json.asc
+SHA256SUMS
+SHA256SUMS.asc
+```
+
+Import the public key and verify the artifact locally:
+
+```bash
+gpg --import limine-manager-release-key.asc
+bash scripts/verify-release-assets /path/to/release-validation-VERSION
+```
+
+Confirm that the fingerprint printed by GPG exactly matches the independently published release-key fingerprint.
+
 ## Create the release
 
-Create an annotated tag whose version exactly matches `CMakeLists.txt`:
+Create a signed annotated tag whose version exactly matches `CMakeLists.txt`:
 
 ```bash
 version=$(sed -n 's/^project(limine-manager VERSION \([^ ]*\).*/\1/p' CMakeLists.txt)
 git tag -s "v$version" -m "Release v$version"
+git verify-tag "v$version"
 git push origin "v$version"
 ```
 
 The release workflow will:
 
 - validate the tag and project versions;
+- require complete GPG signing configuration;
 - compile and run the test suite in Release mode;
 - generate the source archive twice and compare both files;
 - generate an SPDX JSON SBOM;
 - generate and verify `SHA256SUMS`;
-- optionally create and verify detached ASCII-armored GPG signatures;
+- create and verify detached ASCII-armored GPG signatures;
 - generate a GitHub/Sigstore provenance attestation for the source archive;
 - create the GitHub Release with generated release notes.
 
 Only a push event for a valid semantic version tag can execute the attestation and publication steps. Manual workflow runs cannot publish a release.
-
-## Optional GPG asset signing
-
-The annotated Git tag should be signed locally with the maintainer key. The release assets can additionally be signed in GitHub Actions by configuring these repository secrets:
-
-- `RELEASE_GPG_PRIVATE_KEY`: ASCII-armored exported private key.
-- `RELEASE_GPG_PASSPHRASE`: passphrase for that private key.
-
-Export a dedicated release-signing key rather than a general-purpose personal key:
-
-```bash
-gpg --armor --export-secret-keys KEY_ID > release-private-key.asc
-```
-
-Store the contents of that file in `RELEASE_GPG_PRIVATE_KEY`, then securely delete the exported file. Never commit private key material to the repository.
-
-When the private-key secret is absent, the workflow still publishes checksums, the SBOM, and the GitHub artifact attestation, but it does not create `.asc` files.
 
 ## Verify downloaded assets
 
@@ -105,7 +172,7 @@ Checksums can also be verified directly:
 sha256sum --check SHA256SUMS
 ```
 
-GPG signatures, when published:
+GPG signatures:
 
 ```bash
 gpg --verify limine-manager-VERSION.tar.gz.asc limine-manager-VERSION.tar.gz
