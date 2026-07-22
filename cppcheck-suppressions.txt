@@ -1,0 +1,5 @@
+# Known cppcheck 2.21.1 false positives and test-entry-point policy.
+# Keep suppressions narrow and remove them when cppcheck learns these constructs.
+missingReturn:src/application/secure_boot_apply_service.cpp
+throwInEntryPoint:tests/efi_image_transaction_tests.cpp
+throwInEntryPoint:tests/runtime_lock_tests.cpp
