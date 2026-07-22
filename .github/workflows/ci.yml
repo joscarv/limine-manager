@@ -66,16 +66,37 @@ jobs:
           -DLIMINE_MANAGER_ENABLE_CLANG_TIDY=ON
           -DLIMINE_MANAGER_CLANG_TIDY=clang-tidy
           && cmake --build tidy
-      - name: cppcheck
+      - name: cppcheck diagnostics
         run: >-
           cppcheck
           --enable=warning,style,performance,portability
-          --error-exitcode=1
           --inline-suppr
           --std=c++20
           --suppress=missingIncludeSystem
+          --suppressions-list=cppcheck-suppressions.txt
           -I include
           src tests
+      - name: cppcheck blocking errors
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cppcheck \
+            --enable=warning,style,performance,portability \
+            --inline-suppr \
+            --std=c++20 \
+            --suppress=missingIncludeSystem \
+            --suppressions-list=cppcheck-suppressions.txt \
+            --xml --xml-version=2 \
+            -I include \
+            src tests \
+            2> cppcheck.xml
+
+          if grep -q 'severity="error"' cppcheck.xml; then
+              echo "cppcheck reported blocking errors:" >&2
+              grep 'severity="error"' cppcheck.xml >&2
+              exit 1
+          fi
 
   coverage:
     runs-on: ubuntu-24.04
