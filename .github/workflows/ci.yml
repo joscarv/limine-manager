@@ -107,7 +107,7 @@ jobs:
       - run: cmake --build build
       - run: ctest --test-dir build --output-on-failure
       - run: lcov --capture --directory build --output-file coverage.info --ignore-errors mismatch
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: coverage-info
           path: coverage.info
