@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(limine-manager VERSION 1.6.0 LANGUAGES CXX)
+project(limine-manager VERSION 1.7.0 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(CTest)
