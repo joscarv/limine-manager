@@ -32,9 +32,8 @@ Blake2bDigest Blake2bHasher::digest(const std::filesystem::path &path) const {
     return {value};
 }
 
-SecureBootUpdateResult
-SecureBootTools::update_limine_image(const std::filesystem::path &efi,
-                                     const Blake2bDigest &digest) const {
+SecureBootUpdateResult SecureBootTools::update_limine_image(const std::filesystem::path &efi,
+                                                            const Blake2bDigest &digest) const {
     SecureBootUpdateResult result;
 
     require_success(runner_.run({"sbattach", "--remove", efi.string()}),

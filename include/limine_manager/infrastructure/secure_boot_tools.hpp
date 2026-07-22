@@ -12,10 +12,10 @@ struct Blake2bDigest {
 };
 
 struct SecureBootUpdateResult {
-    bool signature_removed{false};
-    bool configuration_enrolled{false};
-    bool image_signed{false};
-    bool signature_verified{false};
+    bool signature_removed {false};
+    bool configuration_enrolled {false};
+    bool image_signed {false};
+    bool signature_verified {false};
 };
 
 class Blake2bHasher {
@@ -32,8 +32,8 @@ class SecureBootTools {
   public:
     explicit SecureBootTools(const ProcessRunner &runner) : runner_(runner) {}
 
-    [[nodiscard]] SecureBootUpdateResult
-    update_limine_image(const std::filesystem::path &efi, const Blake2bDigest &digest) const;
+    [[nodiscard]] SecureBootUpdateResult update_limine_image(const std::filesystem::path &efi,
+                                                             const Blake2bDigest &digest) const;
 
   private:
     const ProcessRunner &runner_;

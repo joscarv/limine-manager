@@ -6,7 +6,7 @@
 namespace limine_manager::infrastructure {
 
 struct ProcessResult {
-    int exit_code{};
+    int exit_code {};
     std::string output;
 };
 

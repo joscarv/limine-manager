@@ -16,8 +16,8 @@ namespace {
 std::filesystem::path backup_name(const std::filesystem::path &image) {
     const auto ticks = std::chrono::steady_clock::now().time_since_epoch().count();
     return std::filesystem::temp_directory_path() /
-           ("limine-manager-" + image.filename().string() + "." +
-            std::to_string(::getpid()) + "." + std::to_string(ticks) + ".bak");
+           ("limine-manager-" + image.filename().string() + "." + std::to_string(::getpid()) + "." +
+            std::to_string(ticks) + ".bak");
 }
 
 struct stat inspect_image(const std::filesystem::path &image) {

@@ -11,7 +11,7 @@ namespace limine_manager::model {
 struct SnapshotModel {
     std::vector<infrastructure::SnapshotInfo> available;
     std::vector<infrastructure::SnapshotInfo> selected;
-    std::size_t maximum{0};
+    std::size_t maximum {0};
 };
 
 // Immutable snapshot of the host state consumed by validation and generation.

@@ -60,10 +60,10 @@ PosixBtrfsClient::list_subvolumes(const std::filesystem::path &mount_point) cons
         const auto id_end = id_text.find(' ');
         if (id_end == std::string::npos)
             return;
-        unsigned long id{};
+        unsigned long id {};
         const auto id_value = id_text.substr(0, id_end);
         const auto parsed = std::from_chars(id_value.data(), id_value.data() + id_value.size(), id);
-        if (parsed.ec != std::errc{} || parsed.ptr != id_value.data() + id_value.size())
+        if (parsed.ec != std::errc {} || parsed.ptr != id_value.data() + id_value.size())
             return;
 
         auto path = field_after(line, " path ");

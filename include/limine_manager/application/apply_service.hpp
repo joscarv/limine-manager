@@ -9,7 +9,7 @@
 namespace limine_manager::application {
 
 struct ApplyResult {
-    bool changed{false};
+    bool changed {false};
     std::filesystem::path target;
     std::filesystem::path backup;
 };

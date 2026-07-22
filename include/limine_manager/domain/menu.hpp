@@ -9,17 +9,17 @@ namespace limine_manager::domain {
 enum class NodeKind { directory, linux_entry };
 
 struct LinuxBootSpec {
-    std::string protocol{"linux"};
+    std::string protocol {"linux"};
     std::string kernel_path;
     std::vector<std::string> module_paths;
     std::string cmdline;
 };
 
 struct MenuNode {
-    NodeKind kind{NodeKind::directory};
+    NodeKind kind {NodeKind::directory};
     std::string title;
     std::optional<std::string> comment;
-    bool expanded{false};
+    bool expanded {false};
     std::optional<LinuxBootSpec> boot;
     std::vector<MenuNode> children;
 

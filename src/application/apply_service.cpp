@@ -14,12 +14,12 @@
 namespace limine_manager::application {
 namespace {
 
-using infrastructure::UniqueFd;
 using infrastructure::copy_file_secure;
 using infrastructure::fsync_directory;
 using infrastructure::read_all;
 using infrastructure::throw_errno;
 using infrastructure::unique_sibling_path;
+using infrastructure::UniqueFd;
 using infrastructure::write_all;
 
 std::filesystem::path default_runtime_directory() {
@@ -38,8 +38,7 @@ std::string normalize_newline(std::string value) {
     return value;
 }
 
-void restore_from_backup(const std::filesystem::path &backup,
-                         const std::filesystem::path &target,
+void restore_from_backup(const std::filesystem::path &backup, const std::filesystem::path &target,
                          const struct stat &metadata) {
     const auto rollback = unique_sibling_path(target, ".rollback");
     try {
@@ -71,8 +70,8 @@ ApplyResult ApplyService::apply(const ChangePlan &plan) const {
     std::error_code runtime_error;
     std::filesystem::create_directories(runtime_directory_, runtime_error);
     if (runtime_error)
-        throw std::runtime_error("cannot create runtime directory '" +
-                                 runtime_directory_.string() + "': " + runtime_error.message());
+        throw std::runtime_error("cannot create runtime directory '" + runtime_directory_.string() +
+                                 "': " + runtime_error.message());
 
     struct stat runtime_metadata {};
     if (::lstat(runtime_directory_.c_str(), &runtime_metadata) < 0)

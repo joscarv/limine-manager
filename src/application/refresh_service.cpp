@@ -3,8 +3,8 @@
 #include "limine_manager/application/backup_service.hpp"
 #include "limine_manager/application/change_planner.hpp"
 #include "limine_manager/application/preview_service.hpp"
-#include "limine_manager/application/validation_service.hpp"
 #include "limine_manager/application/secure_boot_apply_service.hpp"
+#include "limine_manager/application/validation_service.hpp"
 #include "limine_manager/render/limine_renderer.hpp"
 
 namespace limine_manager::application {

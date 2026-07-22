@@ -20,8 +20,8 @@ struct SnapperPluginEvent {
                                              std::string_view expected_subvolume = "/");
 
 struct RefreshRequest {
-    bool requested{false};
-    bool coalesced{false};
+    bool requested {false};
+    bool coalesced {false};
     std::filesystem::path pending_marker;
 };
 

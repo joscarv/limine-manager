@@ -14,7 +14,7 @@ ProcessResult PosixProcessRunner::run(const std::vector<std::string> &arguments)
     if (arguments.empty())
         throw std::invalid_argument("Process argument list is empty");
 
-    int pipe_fd[2]{};
+    int pipe_fd[2] {};
     if (::pipe(pipe_fd) == -1)
         throw std::runtime_error("pipe failed: " + std::string(std::strerror(errno)));
 
@@ -41,7 +41,7 @@ ProcessResult PosixProcessRunner::run(const std::vector<std::string> &arguments)
     }
 
     ::close(pipe_fd[1]);
-    std::array<char, 4096> buffer{};
+    std::array<char, 4096> buffer {};
     std::string output;
     while (true) {
         const auto count = ::read(pipe_fd[0], buffer.data(), buffer.size());
@@ -57,7 +57,7 @@ ProcessResult PosixProcessRunner::run(const std::vector<std::string> &arguments)
     }
     ::close(pipe_fd[0]);
 
-    int status{};
+    int status {};
     while (::waitpid(pid, &status, 0) == -1) {
         if (errno != EINTR)
             throw std::runtime_error("waitpid failed: " + std::string(std::strerror(errno)));

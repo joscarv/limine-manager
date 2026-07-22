@@ -35,7 +35,7 @@ void hashing_test() {
 
     assert(digest.value == std::string(128, 'a'));
     assert(runner.commands.size() == 1);
-    assert((runner.commands[0] == std::vector<std::string>{"b2sum", "/boot/limine.conf"}));
+    assert((runner.commands[0] == std::vector<std::string> {"b2sum", "/boot/limine.conf"}));
 }
 
 void invalid_digest_test() {
@@ -58,23 +58,23 @@ void secure_boot_update_test() {
     runner.results = {{0, {}}, {0, {}}, {0, {}}, {0, {}}};
 
     const SecureBootTools tools(runner);
-    const auto result = tools.update_limine_image("/boot/EFI/BOOT/BOOTX64.EFI",
-                                                  {std::string(128, 'b')});
+    const auto result =
+        tools.update_limine_image("/boot/EFI/BOOT/BOOTX64.EFI", {std::string(128, 'b')});
 
     assert(result.signature_removed);
     assert(result.configuration_enrolled);
     assert(result.image_signed);
     assert(result.signature_verified);
     assert(runner.commands.size() == 4);
-    assert((runner.commands[0] == std::vector<std::string>{
-                                      "sbattach", "--remove", "/boot/EFI/BOOT/BOOTX64.EFI"}));
-    assert((runner.commands[1] == std::vector<std::string>{
-                                      "limine", "enroll-config", "/boot/EFI/BOOT/BOOTX64.EFI",
-                                      std::string(128, 'b')}));
-    assert((runner.commands[2] == std::vector<std::string>{
-                                      "sbctl", "sign", "-s", "/boot/EFI/BOOT/BOOTX64.EFI"}));
-    assert((runner.commands[3] == std::vector<std::string>{
-                                      "sbctl", "verify", "/boot/EFI/BOOT/BOOTX64.EFI"}));
+    assert((runner.commands[0] ==
+            std::vector<std::string> {"sbattach", "--remove", "/boot/EFI/BOOT/BOOTX64.EFI"}));
+    assert((runner.commands[1] == std::vector<std::string> {"limine", "enroll-config",
+                                                            "/boot/EFI/BOOT/BOOTX64.EFI",
+                                                            std::string(128, 'b')}));
+    assert((runner.commands[2] ==
+            std::vector<std::string> {"sbctl", "sign", "-s", "/boot/EFI/BOOT/BOOTX64.EFI"}));
+    assert((runner.commands[3] ==
+            std::vector<std::string> {"sbctl", "verify", "/boot/EFI/BOOT/BOOTX64.EFI"}));
 }
 
 void stop_on_failure_test() {

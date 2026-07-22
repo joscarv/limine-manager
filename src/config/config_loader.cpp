@@ -162,7 +162,8 @@ void assign(AppConfig &config, const std::string &section, const std::string &ke
         else if (key == "automatic_apply")
             config.secure_boot_automatic_apply = parse_bool(value, line);
         else if (key == "efi_executable")
-            config.secure_boot_efi_executable = value == "auto" ? std::filesystem::path{} : std::filesystem::path(value),
+            config.secure_boot_efi_executable =
+                value == "auto" ? std::filesystem::path {} : std::filesystem::path(value),
             config.system.limine_efi_executable = config.secure_boot_efi_executable;
         else
             throw std::runtime_error("Unknown key [secure_boot]." + key + " at line " +
@@ -298,7 +299,9 @@ std::string ConfigLoader::render(const LoadedConfig &loaded) const {
     out << "[secure_boot]\n"
         << "protect_config = " << (c.secure_boot_protect_config ? "true" : "false") << '\n'
         << "automatic_apply = " << (c.secure_boot_automatic_apply ? "true" : "false") << '\n'
-        << "efi_executable = " << (c.secure_boot_efi_executable.empty() ? "auto" : c.secure_boot_efi_executable.string()) << "\n\n";
+        << "efi_executable = "
+        << (c.secure_boot_efi_executable.empty() ? "auto" : c.secure_boot_efi_executable.string())
+        << "\n\n";
     out << "[limine]\n";
     for (const auto &[key, value] : c.limine_options)
         out << key << " = " << value << '\n';

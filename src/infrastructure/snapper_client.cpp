@@ -77,10 +77,10 @@ std::vector<SnapshotInfo> SnapperClient::list() const {
             throw std::runtime_error("Unexpected snapper CSV column count");
         if (fields[0] == "0")
             return;
-        unsigned long number{};
+        unsigned long number {};
         const auto parsed =
             std::from_chars(fields[0].data(), fields[0].data() + fields[0].size(), number);
-        if (parsed.ec != std::errc{} || parsed.ptr != fields[0].data() + fields[0].size()) {
+        if (parsed.ec != std::errc {} || parsed.ptr != fields[0].data() + fields[0].size()) {
             throw std::runtime_error("Invalid snapshot number: " + fields[0]);
         }
         snapshots.push_back({number, fields[1], fields[2], fields[3] == "yes"});

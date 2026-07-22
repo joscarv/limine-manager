@@ -1,0 +1,16 @@
+repos:
+  - repo: local
+    hooks:
+      - id: clang-format-check
+        name: clang-format check
+        entry: scripts/format-check
+        language: system
+        pass_filenames: false
+        files: ^(include|src|tests)/.*\.(cpp|hpp)$
+
+      - id: cmake-format-check
+        name: CMake configure check
+        entry: cmake -S . -B build/pre-commit -G Ninja
+        language: system
+        pass_filenames: false
+        files: ^(CMakeLists\.txt|cmake/.*\.cmake)$

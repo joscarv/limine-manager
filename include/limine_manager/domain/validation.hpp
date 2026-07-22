@@ -9,7 +9,7 @@ namespace limine_manager::domain {
 enum class DiagnosticSeverity { info, warning, error };
 
 struct Diagnostic {
-    DiagnosticSeverity severity{DiagnosticSeverity::info};
+    DiagnosticSeverity severity {DiagnosticSeverity::info};
     std::string code;
     std::string message;
 };

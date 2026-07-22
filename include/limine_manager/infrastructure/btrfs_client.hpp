@@ -10,7 +10,7 @@
 namespace limine_manager::infrastructure {
 
 struct BtrfsSubvolume {
-    unsigned long id{};
+    unsigned long id {};
     std::string path;
 };
 

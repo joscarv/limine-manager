@@ -3,9 +3,9 @@
 #include "limine_manager/application/backup_service.hpp"
 #include "limine_manager/application/change_planner.hpp"
 #include "limine_manager/application/preview_service.hpp"
-#include "limine_manager/application/status_service.hpp"
 #include "limine_manager/application/rollback_planner.hpp"
 #include "limine_manager/application/rollback_service.hpp"
+#include "limine_manager/application/status_service.hpp"
 #include "limine_manager/application/validation_service.hpp"
 #include "limine_manager/config/config_loader.hpp"
 #include "limine_manager/domain/kernel_cmdline.hpp"
@@ -67,7 +67,7 @@ class FakeFileSystem final : public limine_manager::infrastructure::FileSystem {
     }
     std::string read_text(const std::filesystem::path &path) const override {
         const auto it = files_.find(normalize(path));
-        return it == files_.end() ? std::string{} : it->second;
+        return it == files_.end() ? std::string {} : it->second;
     }
     std::vector<limine_manager::infrastructure::DirectoryEntry>
     list_directory(const std::filesystem::path &path) const override {
@@ -176,15 +176,15 @@ class FakeBtrfsClient final : public limine_manager::infrastructure::BtrfsClient
         return relative.string();
     }
 
-    mutable std::vector<limine_manager::infrastructure::BtrfsSubvolume> subvolumes{
+    mutable std::vector<limine_manager::infrastructure::BtrfsSubvolume> subvolumes {
         {256, "@"}, {257, "@snapshots/123/snapshot"}};
-    mutable bool mounted{false};
-    mutable std::filesystem::path mounted_at{"/"};
-    mutable unsigned long next_id{300};
-    mutable int move_count{0};
-    bool fail_create{false};
-    bool fail_second_move{false};
-    bool fail_list{false};
+    mutable bool mounted {false};
+    mutable std::filesystem::path mounted_at {"/"};
+    mutable unsigned long next_id {300};
+    mutable int move_count {0};
+    bool fail_create {false};
+    bool fail_second_move {false};
+    bool fail_list {false};
 };
 
 limine_manager::infrastructure::KernelInstallation kernel(std::string pkgbase, std::string release,
@@ -206,11 +206,11 @@ void menu_tree_test() {
     system.kernel_cmdline = domain::KernelCommandLine::parse(
         "cryptdevice=UUID=demo:cryptroot root=/dev/mapper/cryptroot rootflags=subvol=@ rw");
 
-    const std::vector<infrastructure::SnapshotInfo> snapshots{
+    const std::vector<infrastructure::SnapshotInfo> snapshots {
         {42, "2026-07-01 12:01:33 +0000", "Before upgrade", true}};
     application::PreviewService service;
     render::LimineRenderer renderer;
-    const auto output = renderer.render(service.build(system, snapshots, config::AppConfig{}));
+    const auto output = renderer.render(service.build(system, snapshots, config::AppConfig {}));
 
     assert(output.find("/+Arch Linux") != std::string::npos);
     assert(output.find("//Linux") != std::string::npos);
@@ -237,7 +237,7 @@ void multiple_kernel_test() {
     application::PreviewService service;
     render::LimineRenderer renderer;
     const auto output = renderer.render(
-        service.build(system, {{7, "2026-07-01", "test", true}}, config::AppConfig{}));
+        service.build(system, {{7, "2026-07-01", "test", true}}, config::AppConfig {}));
     assert(output.find("//Linux LTS") != std::string::npos);
     assert(output.find("////Linux LTS") != std::string::npos);
     assert(output.find("path: boot():/vmlinuz-linux-lts") != std::string::npos);
@@ -303,11 +303,11 @@ void uki_discovery_and_render_test() {
     infrastructure::SystemInfo system;
     system.boot_mount = "/boot";
     system.kernels = kernels;
-    system.kernel_cmdline = domain::KernelCommandLine::parse(
-        "root=/dev/mapper/cryptroot rootflags=subvol=@ rw");
+    system.kernel_cmdline =
+        domain::KernelCommandLine::parse("root=/dev/mapper/cryptroot rootflags=subvol=@ rw");
     application::PreviewService preview;
     render::LimineRenderer renderer;
-    const auto output = renderer.render(preview.build(system, {}, config::AppConfig{}));
+    const auto output = renderer.render(preview.build(system, {}, config::AppConfig {}));
     assert(output.find("protocol: efi") != std::string::npos);
     assert(output.find("path: boot():/EFI/Linux/arch-linux.efi") != std::string::npos);
     assert(output.find("module_path:") == std::string::npos);
@@ -531,15 +531,15 @@ void simulated_system_integration_test() {
     assert(system.limine_config == "/boot/EFI/BOOT/limine.conf");
 
     application::ValidationService validator(filesystem);
-    infrastructure::SnapperConfig snapper{"root", "/", "btrfs"};
-    const std::vector<infrastructure::SnapshotInfo> snapshots{
+    infrastructure::SnapperConfig snapper {"root", "/", "btrfs"};
+    const std::vector<infrastructure::SnapshotInfo> snapshots {
         {42, "2026-07-01", "Before upgrade", true}};
-    const auto report = validator.validate(system, snapper, snapshots, config::AppConfig{});
+    const auto report = validator.validate(system, snapper, snapshots, config::AppConfig {});
     assert(report.valid());
 
     application::PreviewService preview;
     render::LimineRenderer renderer;
-    const auto output = renderer.render(preview.build(system, snapshots, config::AppConfig{}));
+    const auto output = renderer.render(preview.build(system, snapshots, config::AppConfig {}));
     assert(output.find("rootflags=subvol=@snapshots/42/snapshot") != std::string::npos);
 }
 
@@ -579,17 +579,16 @@ void automatic_unencrypted_cmdline_test() {
     const auto system = detector.detect();
     assert(system.kernel_cmdline_generated);
     assert(!system.root_encrypted);
-    assert(system.kernel_cmdline.value("root") ==
-           "UUID=11111111-2222-3333-4444-555555555555");
+    assert(system.kernel_cmdline.value("root") == "UUID=11111111-2222-3333-4444-555555555555");
     assert(system.kernel_cmdline.value("rootflags") == "subvol=@");
     assert(system.kernel_cmdline.contains("rw"));
     assert(!system.kernel_cmdline.contains("cryptdevice"));
     assert(!system.kernel_cmdline.contains("rd.luks.name"));
 
     application::ValidationService validator(filesystem);
-    const auto report = validator.validate(
-        system, infrastructure::SnapperConfig{"root", "/", "btrfs"},
-        {{1, "2026-07-15", "test", true}}, config::AppConfig{});
+    const auto report =
+        validator.validate(system, infrastructure::SnapperConfig {"root", "/", "btrfs"},
+                           {{1, "2026-07-15", "test", true}}, config::AppConfig {});
     assert(report.valid());
 }
 
@@ -600,9 +599,11 @@ void automatic_encrypted_cmdline_test() {
         filesystem.add_file("/etc/os-release", "PRETTY_NAME=\"Arch Linux\"\n");
         filesystem.add_file("/proc/cpuinfo", "vendor_id : GenuineIntel\n");
         if (sd_encrypt)
-            filesystem.add_file("/etc/mkinitcpio.conf", "HOOKS=(base systemd autodetect sd-encrypt filesystems)\n");
+            filesystem.add_file("/etc/mkinitcpio.conf",
+                                "HOOKS=(base systemd autodetect sd-encrypt filesystems)\n");
         else
-            filesystem.add_file("/etc/mkinitcpio.conf", "HOOKS=(base udev autodetect encrypt filesystems)\n");
+            filesystem.add_file("/etc/mkinitcpio.conf",
+                                "HOOKS=(base udev autodetect encrypt filesystems)\n");
         filesystem.add_directory("/boot");
         filesystem.add_file("/boot/limine.conf", "timeout: 5\n");
         filesystem.add_file("/boot/vmlinuz-linux", "kernel");
@@ -615,8 +616,9 @@ void automatic_encrypted_cmdline_test() {
         runner.respond({"uname", "-r"}, "7.1.3-arch1-2\n");
         const auto mount = [&](const std::string &target, const std::string &field,
                                const std::string &value) {
-            runner.respond({"findmnt", "--noheadings", "--raw", "--target", target, "--output", field},
-                           value + "\n");
+            runner.respond(
+                {"findmnt", "--noheadings", "--raw", "--target", target, "--output", field},
+                value + "\n");
         };
         mount("/boot", "TARGET", "/boot");
         mount("/boot", "SOURCE", "/dev/nvme0n1p1");
@@ -624,12 +626,15 @@ void automatic_encrypted_cmdline_test() {
         mount("/", "SOURCE", "/dev/mapper/cryptroot[/@]");
         mount("/", "FSTYPE", "btrfs");
         mount("/", "OPTIONS", "rw,subvol=@");
-        runner.respond({"lsblk", "--noheadings", "--raw", "--output", "TYPE", "/dev/mapper/cryptroot"},
-                       "crypt\n");
-        runner.respond({"cryptsetup", "status", "cryptroot"},
-                       "/dev/mapper/cryptroot is active.\n  type: LUKS2\n  device: /dev/nvme0n1p2\n");
-        runner.respond({"blkid", "--match-tag", "UUID", "--output", "value", "/dev/mapper/cryptroot"},
-                       "bbbbbbbb-cccc-dddd-eeee-ffffffffffff\n");
+        runner.respond(
+            {"lsblk", "--noheadings", "--raw", "--output", "TYPE", "/dev/mapper/cryptroot"},
+            "crypt\n");
+        runner.respond(
+            {"cryptsetup", "status", "cryptroot"},
+            "/dev/mapper/cryptroot is active.\n  type: LUKS2\n  device: /dev/nvme0n1p2\n");
+        runner.respond(
+            {"blkid", "--match-tag", "UUID", "--output", "value", "/dev/mapper/cryptroot"},
+            "bbbbbbbb-cccc-dddd-eeee-ffffffffffff\n");
         runner.respond({"blkid", "--match-tag", "UUID", "--output", "value", "/dev/nvme0n1p2"},
                        "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\n");
         runner.respond({"blkid", "--match-tag", "PARTUUID", "--output", "value", "/dev/nvme0n1p2"},
@@ -656,7 +661,6 @@ void automatic_encrypted_cmdline_test() {
     run_case(false);
     run_case(true);
 }
-
 
 void unprivileged_sysfs_encrypted_discovery_test() {
     using namespace limine_manager;
@@ -736,11 +740,10 @@ void traditional_encrypt_validation_test() {
 
     application::ValidationService validator(filesystem);
     const auto report =
-        validator.validate(system, infrastructure::SnapperConfig{"root", "/", "btrfs"},
-                           {{1, "2026-07-13", "test", true}}, config::AppConfig{});
+        validator.validate(system, infrastructure::SnapperConfig {"root", "/", "btrfs"},
+                           {{1, "2026-07-13", "test", true}}, config::AppConfig {});
     assert(report.valid());
 }
-
 
 void archinstall_luks_uuid_validation_test() {
     using namespace limine_manager;
@@ -778,12 +781,11 @@ void archinstall_luks_uuid_validation_test() {
     system.kernels = {uki};
 
     application::ValidationService validator(filesystem);
-    const auto report = validator.validate(
-        system, infrastructure::SnapperConfig{"root", "/", "btrfs"},
-        {{1, "2026-07-16", "archinstall", true}}, config::AppConfig{});
+    const auto report =
+        validator.validate(system, infrastructure::SnapperConfig {"root", "/", "btrfs"},
+                           {{1, "2026-07-16", "archinstall", true}}, config::AppConfig {});
     assert(report.valid());
 }
-
 
 void archinstall_partuuid_validation_test() {
     using namespace limine_manager;
@@ -812,7 +814,8 @@ void archinstall_partuuid_validation_test() {
     system.running_kernel_release = "7.1.3-arch1-3";
     system.kernel_cmdline = domain::KernelCommandLine::parse(
         "cryptdevice=PARTUUID=da5d4d02-603b-48f8-a0e7-fe49a9c9a43a:cryptroot "
-        "root=/dev/mapper/root zswap.enabled=0 rootflags=subvol=@ rw rootfstype=btrfs quiet splash");
+        "root=/dev/mapper/root zswap.enabled=0 rootflags=subvol=@ rw rootfstype=btrfs quiet "
+        "splash");
     infrastructure::KernelInstallation uki;
     uki.package_base = "linux";
     uki.release = "7.1.3-arch1-3";
@@ -823,9 +826,9 @@ void archinstall_partuuid_validation_test() {
     system.kernels = {uki};
 
     application::ValidationService validator(filesystem);
-    const auto report = validator.validate(
-        system, infrastructure::SnapperConfig{"root", "/", "btrfs"},
-        {{1, "2026-07-16", "archinstall", true}}, config::AppConfig{});
+    const auto report =
+        validator.validate(system, infrastructure::SnapperConfig {"root", "/", "btrfs"},
+                           {{1, "2026-07-16", "archinstall", true}}, config::AppConfig {});
     assert(report.valid());
 }
 
@@ -877,7 +880,7 @@ void apply_service_test() {
     assert(filesystem.read_text(target) == "timeout: 10\n");
     assert(filesystem.read_text(result.backup) == "timeout: 5\n");
 
-    struct stat metadata{};
+    struct stat metadata {};
     assert(::stat(target.c_str(), &metadata) == 0);
     assert((metadata.st_mode & 0777) == 0640);
 
@@ -937,8 +940,8 @@ void deterministic_render_test() {
         domain::KernelCommandLine::parse("root=/dev/mapper/cryptroot rootflags=subvol=@ rw");
     application::PreviewService preview;
     render::LimineRenderer renderer;
-    const auto first = renderer.render(preview.build(system, {}, config::AppConfig{}));
-    const auto second = renderer.render(preview.build(system, {}, config::AppConfig{}));
+    const auto first = renderer.render(preview.build(system, {}, config::AppConfig {}));
+    const auto second = renderer.render(preview.build(system, {}, config::AppConfig {}));
     assert(first == second);
     assert(first.find("Generated by limine-manager") != std::string::npos);
 }
@@ -996,7 +999,7 @@ rollback_plan_for(const limine_manager::infrastructure::SystemInfo &system,
     using namespace limine_manager;
     application::RollbackPlanner planner(btrfs, {"testtx"});
     return planner.build(system, {"root", "/", "btrfs"}, {{123, "2026-07-13", "before", true}},
-                         config::AppConfig{});
+                         config::AppConfig {});
 }
 
 void rollback_planner_test() {
@@ -1034,7 +1037,6 @@ void rollback_planner_test() {
     assert(!conflicted.eligible);
 }
 
-
 void status_service_test() {
     using namespace limine_manager;
     model::SystemModel model;
@@ -1052,7 +1054,8 @@ void status_service_test() {
     model.system.boot_fstype = "vfat";
     model.system.limine_config = "/boot/EFI/BOOT/limine.conf";
     model.system.kernel_cmdline_file = "/etc/kernel/cmdline";
-    model.system.kernels.push_back({"linux", "7.1.3", "Linux", "/boot/EFI/Linux/arch-linux.efi", {}, true, true});
+    model.system.kernels.push_back(
+        {"linux", "7.1.3", "Linux", "/boot/EFI/Linux/arch-linux.efi", {}, true, true});
     model.snapper = {"root", "/", "btrfs"};
     model.snapshots.available = {{1, "2026-07-16", "test", true}, {2, "2026-07-15", "older", true}};
     model.snapshots.selected = {{1, "2026-07-16", "test", true}};
@@ -1060,8 +1063,8 @@ void status_service_test() {
 
     domain::ValidationReport validation;
     validation.info("system", "valid");
-    application::ChangePlan plan{application::ChangeKind::unchanged,
-                                 model.system.limine_config, {}, {}};
+    application::ChangePlan plan {
+        application::ChangeKind::unchanged, model.system.limine_config, {}, {}};
     config::AppConfig config;
     config.theme_name = "catppuccin";
     application::StatusService service;
@@ -1122,7 +1125,7 @@ void secure_boot_render_test() {
 
     application::PreviewService preview;
     render::LimineRenderer renderer;
-    const auto output = renderer.render(preview.build(system, {}, config::AppConfig{}));
+    const auto output = renderer.render(preview.build(system, {}, config::AppConfig {}));
     assert(output.find("path: boot():/vmlinuz-linux#" + std::string(128, 'a')) !=
            std::string::npos);
     assert(output.find("module_path: boot():/intel-ucode.img#" + std::string(128, 'b')) !=

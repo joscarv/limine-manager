@@ -13,24 +13,24 @@
 namespace limine_manager::infrastructure {
 
 struct SystemProfile {
-    std::filesystem::path boot_mount{"/boot"};
-    std::filesystem::path limine_config{"/boot/limine.conf"};
-    std::filesystem::path kernel_cmdline_file{"/etc/kernel/cmdline"};
-    std::filesystem::path modules_root{"/usr/lib/modules"};
-    std::filesystem::path cpuinfo{"/proc/cpuinfo"};
-    std::filesystem::path mkinitcpio_config{"/etc/mkinitcpio.conf"};
+    std::filesystem::path boot_mount {"/boot"};
+    std::filesystem::path limine_config {"/boot/limine.conf"};
+    std::filesystem::path kernel_cmdline_file {"/etc/kernel/cmdline"};
+    std::filesystem::path modules_root {"/usr/lib/modules"};
+    std::filesystem::path cpuinfo {"/proc/cpuinfo"};
+    std::filesystem::path mkinitcpio_config {"/etc/mkinitcpio.conf"};
     std::filesystem::path limine_efi_executable;
 };
 
 enum class SignatureVerificationState { verified, unsigned_file, unavailable };
 
 struct SecureBootInfo {
-    bool enabled{false};
-    bool setup_mode{false};
-    bool sbctl_available{false};
-    bool limine_available{false};
-    bool sbattach_available{false};
-    SignatureVerificationState efi_signature{SignatureVerificationState::unavailable};
+    bool enabled {false};
+    bool setup_mode {false};
+    bool sbctl_available {false};
+    bool limine_available {false};
+    bool sbattach_available {false};
+    SignatureVerificationState efi_signature {SignatureVerificationState::unavailable};
     std::string efi_signature_detail;
     std::filesystem::path efi_executable;
     std::map<std::filesystem::path, std::string> resource_hashes;
@@ -46,18 +46,18 @@ struct SystemInfo {
     std::filesystem::path limine_config;
     std::filesystem::path kernel_cmdline_file;
     std::string kernel_cmdline_text;
-    domain::KernelCommandLine kernel_cmdline{domain::KernelCommandLine::parse("")};
+    domain::KernelCommandLine kernel_cmdline {domain::KernelCommandLine::parse("")};
     std::vector<KernelInstallation> kernels;
     std::string root_source;
     std::string root_fstype;
     std::string root_subvolume;
     std::string root_uuid;
-    bool root_encrypted{false};
+    bool root_encrypted {false};
     std::string root_mapper_name;
     std::string encrypted_backing_device;
     std::string encrypted_backing_partuuid;
     std::string luks_uuid;
-    bool kernel_cmdline_generated{false};
+    bool kernel_cmdline_generated {false};
     SecureBootInfo secure_boot;
 };
 

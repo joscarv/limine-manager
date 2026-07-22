@@ -28,8 +28,8 @@ class MutatingProcessRunner final : public limine_manager::infrastructure::Proce
         : efi(std::move(efi_path)), fail_command(failure) {}
 
     std::filesystem::path efi;
-    std::size_t fail_command{0};
-    mutable std::size_t secure_boot_command{0};
+    std::size_t fail_command {0};
+    mutable std::size_t secure_boot_command {0};
 
     limine_manager::infrastructure::ProcessResult
     run(const std::vector<std::string> &arguments) const override {
@@ -73,8 +73,8 @@ void rollback_each_secure_boot_stage_test() {
         write_text(config_path, "timeout: 5\n");
         write_text(efi_path, "original EFI\n");
 
-        application::ChangePlan plan{application::ChangeKind::update, config_path,
-                                     "timeout: 5\n", "timeout: 10\n"};
+        application::ChangePlan plan {application::ChangeKind::update, config_path, "timeout: 5\n",
+                                      "timeout: 10\n"};
         MutatingProcessRunner runner(efi_path, failure);
         application::SecureBootApplyService service(runner);
 
@@ -104,7 +104,8 @@ void rollback_created_configuration_test() {
     const auto efi_path = root / "BOOTX64.EFI";
     write_text(efi_path, "original EFI\n");
 
-    application::ChangePlan plan{application::ChangeKind::create, config_path, {}, "timeout: 10\n"};
+    application::ChangePlan plan {
+        application::ChangeKind::create, config_path, {}, "timeout: 10\n"};
     MutatingProcessRunner runner(efi_path, 2);
     application::SecureBootApplyService service(runner);
 
@@ -125,7 +126,7 @@ void rollback_between_application_stages_test() {
     using namespace limine_manager;
     using application::testing::SecureBootApplyFailurePoint;
 
-    constexpr std::array failure_points{
+    constexpr std::array failure_points {
         SecureBootApplyFailurePoint::after_config_apply,
         SecureBootApplyFailurePoint::after_digest,
         SecureBootApplyFailurePoint::after_efi_update,
@@ -144,8 +145,8 @@ void rollback_between_application_stages_test() {
         write_text(config_path, "timeout: 5\n");
         write_text(efi_path, "original EFI\n");
 
-        application::ChangePlan plan{application::ChangeKind::update, config_path,
-                                     "timeout: 5\n", "timeout: 10\n"};
+        application::ChangePlan plan {application::ChangeKind::update, config_path, "timeout: 5\n",
+                                      "timeout: 10\n"};
         MutatingProcessRunner runner(efi_path, 0);
         application::SecureBootApplyService service(runner);
         application::testing::inject_failure_once(failure_points.at(index));
@@ -179,8 +180,8 @@ void failure_injection_is_consumed_once_test() {
     write_text(config_path, "timeout: 5\n");
     write_text(efi_path, "original EFI\n");
 
-    application::ChangePlan plan{application::ChangeKind::update, config_path,
-                                 "timeout: 5\n", "timeout: 10\n"};
+    application::ChangePlan plan {application::ChangeKind::update, config_path, "timeout: 5\n",
+                                  "timeout: 10\n"};
     MutatingProcessRunner runner(efi_path, 0);
     application::SecureBootApplyService service(runner);
 
@@ -217,8 +218,8 @@ void successful_commit_test() {
     write_text(config_path, "timeout: 5\n");
     write_text(efi_path, "original EFI\n");
 
-    application::ChangePlan plan{application::ChangeKind::update, config_path,
-                                 "timeout: 5\n", "timeout: 10\n"};
+    application::ChangePlan plan {application::ChangeKind::update, config_path, "timeout: 5\n",
+                                  "timeout: 10\n"};
     MutatingProcessRunner runner(efi_path, 0);
     application::SecureBootApplyService service(runner);
 

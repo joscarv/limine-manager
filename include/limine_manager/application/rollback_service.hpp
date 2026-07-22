@@ -9,7 +9,7 @@
 namespace limine_manager::application {
 
 struct RollbackExecutionOptions {
-    std::filesystem::path runtime_directory{"/run/limine-manager"};
+    std::filesystem::path runtime_directory {"/run/limine-manager"};
 };
 
 struct RollbackResult {

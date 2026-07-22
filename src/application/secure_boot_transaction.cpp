@@ -8,9 +8,8 @@
 
 namespace limine_manager::application {
 
-SecureBootTransaction::SecureBootTransaction(
-    std::filesystem::path efi_image,
-    infrastructure::RollbackErrorReporter error_reporter)
+SecureBootTransaction::SecureBootTransaction(std::filesystem::path efi_image,
+                                             infrastructure::RollbackErrorReporter error_reporter)
     : error_reporter_(std::move(error_reporter)),
       efi_transaction_(std::move(efi_image), error_reporter_) {}
 
@@ -70,8 +69,8 @@ void SecureBootTransaction::rollback_config() {
 
     if (!apply_result_->backup.empty()) {
         infrastructure::atomic_restore_file(apply_result_->backup, apply_result_->target,
-                                             "configuration backup",
-                                             "configuration rollback target");
+                                            "configuration backup",
+                                            "configuration rollback target");
     } else {
         infrastructure::remove_regular_file_secure(apply_result_->target,
                                                    "newly created configuration");

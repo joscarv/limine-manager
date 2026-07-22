@@ -1,17 +1,206 @@
-name: Release archive
+name: Release
+
 on:
   push:
-    tags: ['v*']
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
 permissions:
   contents: write
+  id-token: write
+  attestations: write
+
+env:
+  RELEASE_GPG_PRIVATE_KEY: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
+  RELEASE_GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+
 jobs:
-  archive:
-    runs-on: ubuntu-latest
+  release:
+    name: Build and validate release
+    runs-on: ubuntu-24.04
+
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - name: Build reproducible source archive
-        run: scripts/create-release-tarball "${GITHUB_REF_NAME#v}" "$PWD/limine-manager-${GITHUB_REF_NAME#v}.tar.gz"
-      - uses: softprops/action-gh-release@v2
+      - name: Checkout source
+        uses: actions/checkout@v4
         with:
-          files: limine-manager-*.tar.gz
+          fetch-depth: 0
+
+      - name: Resolve and validate version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          project_version=$(sed -n \
+            's/^project(limine-manager VERSION \([^ ]*\).*/\1/p' \
+            CMakeLists.txt)
+
+          if [[ -z $project_version ]]; then
+              echo "Unable to determine the version from CMakeLists.txt" >&2
+              exit 1
+          fi
+
+          if [[ $GITHUB_EVENT_NAME == push ]]; then
+              if [[ ! $GITHUB_REF_NAME =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                  echo "Release tag must use the form vMAJOR.MINOR.PATCH" >&2
+                  exit 1
+              fi
+
+              tag_version="${GITHUB_REF_NAME#v}"
+              if [[ $tag_version != "$project_version" ]]; then
+                  printf 'Tag version %s does not match project version %s\n' \
+                      "$tag_version" "$project_version" >&2
+                  exit 1
+              fi
+          else
+              echo "Manual validation mode: no GitHub Release will be published"
+          fi
+
+          echo "version=$project_version" >> "$GITHUB_OUTPUT"
+          echo "archive=limine-manager-$project_version.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "sbom=limine-manager-$project_version.spdx.json" >> "$GITHUB_OUTPUT"
+
+      - name: Validate release signing configuration
+        id: signing
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          has_private_key=false
+          has_passphrase=false
+          [[ -n $RELEASE_GPG_PRIVATE_KEY ]] && has_private_key=true
+          [[ -n $RELEASE_GPG_PASSPHRASE ]] && has_passphrase=true
+
+          if [[ $has_private_key != $has_passphrase ]]; then
+              echo "Both RELEASE_GPG_PRIVATE_KEY and RELEASE_GPG_PASSPHRASE must be configured together" >&2
+              exit 1
+          fi
+
+          if [[ $GITHUB_EVENT_NAME == push && $has_private_key == false ]]; then
+              echo "Tagged releases require GPG signing secrets" >&2
+              exit 1
+          fi
+
+          echo "enabled=$has_private_key" >> "$GITHUB_OUTPUT"
+
+          if [[ $has_private_key == false ]]; then
+              echo "Manual validation will continue without GPG signatures"
+          fi
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++
+
+      - name: Build and test release sources
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build build
+          ctest --test-dir build --output-on-failure
+
+      - name: Build reproducible source archives
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARCHIVE: ${{ steps.version.outputs.archive }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          scripts/create-release-tarball "$VERSION" "dist/$ARCHIVE"
+          scripts/create-release-tarball "$VERSION" "dist/$ARCHIVE.rebuilt"
+
+          if ! cmp --silent "dist/$ARCHIVE" "dist/$ARCHIVE.rebuilt"; then
+              echo "Release archive is not reproducible" >&2
+              sha256sum "dist/$ARCHIVE" "dist/$ARCHIVE.rebuilt" >&2
+              exit 1
+          fi
+
+          rm "dist/$ARCHIVE.rebuilt"
+
+      - name: Generate SPDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: dist/${{ steps.version.outputs.sbom }}
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum "${{ steps.version.outputs.archive }}" "${{ steps.version.outputs.sbom }}" > SHA256SUMS
+
+      - name: Import release signing key
+        if: steps.signing.outputs.enabled == 'true'
+        id: gpg
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          export GNUPGHOME="$RUNNER_TEMP/release-gnupg"
+          mkdir -m 700 "$GNUPGHOME"
+
+          printf '%s' "$RELEASE_GPG_PRIVATE_KEY" | gpg --batch --import
+
+          fingerprint=$(gpg --batch --with-colons --list-secret-keys \
+            | awk -F: '$1 == "fpr" { print $10; exit }')
+
+          if [[ -z $fingerprint ]]; then
+              echo "Unable to determine the imported release-signing key fingerprint" >&2
+              exit 1
+          fi
+
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          echo "Imported release-signing key: $fingerprint"
+
+      - name: Sign release assets with GPG
+        if: steps.signing.outputs.enabled == 'true'
+        working-directory: dist
+        shell: bash
+        env:
+          RELEASE_GPG_FINGERPRINT: ${{ steps.gpg.outputs.fingerprint }}
+        run: |
+          set -euo pipefail
+
+          for asset in \
+              "${{ steps.version.outputs.archive }}" \
+              "${{ steps.version.outputs.sbom }}" \
+              SHA256SUMS; do
+              gpg --batch --yes --pinentry-mode loopback \
+                  --local-user "$RELEASE_GPG_FINGERPRINT" \
+                  --passphrase "$RELEASE_GPG_PASSPHRASE" \
+                  --armor --detach-sign "$asset"
+          done
+
+      - name: Verify generated release assets
+        run: bash scripts/verify-release-assets dist
+
+      - name: Upload validation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-validation-${{ steps.version.outputs.version }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Attest release archive provenance
+        if: github.event_name == 'push'
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/${{ steps.version.outputs.archive }}
+
+      - name: Publish GitHub release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          files: |
+            dist/${{ steps.version.outputs.archive }}
+            dist/${{ steps.version.outputs.sbom }}
+            dist/SHA256SUMS
+            dist/*.asc

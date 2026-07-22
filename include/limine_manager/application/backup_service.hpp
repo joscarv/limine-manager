@@ -9,8 +9,8 @@ namespace limine_manager::application {
 
 struct BackupInfo {
     std::filesystem::path path;
-    std::uintmax_t size{0};
-    std::filesystem::file_time_type modified{};
+    std::uintmax_t size {0};
+    std::filesystem::file_time_type modified {};
 };
 
 class BackupService {

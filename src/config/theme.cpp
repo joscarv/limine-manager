@@ -15,7 +15,7 @@ std::string normalize(std::string value) {
 }
 
 const std::vector<ThemePreset> &themes() {
-    static const std::vector<ThemePreset> presets{
+    static const std::vector<ThemePreset> presets {
         {"none", "None", {}},
         {"tokyo-night",
          "Tokyo Night",

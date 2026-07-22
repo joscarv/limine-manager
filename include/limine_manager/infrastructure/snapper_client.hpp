@@ -14,10 +14,10 @@ struct SnapperConfig {
 };
 
 struct SnapshotInfo {
-    unsigned long number{};
+    unsigned long number {};
     std::string date;
     std::string description;
-    bool read_only{};
+    bool read_only {};
 };
 
 class SnapperClient {

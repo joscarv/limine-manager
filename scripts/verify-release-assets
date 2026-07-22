@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dir=${1:-.}
+
+if [[ ! -d $dir ]]; then
+    printf 'Release directory not found: %s\n' "$dir" >&2
+    exit 1
+fi
+
+cd "$dir"
+
+if [[ ! -f SHA256SUMS ]]; then
+    echo "SHA256SUMS is missing" >&2
+    exit 1
+fi
+
+sha256sum --check SHA256SUMS
+
+shopt -s nullglob
+signatures=(*.asc)
+
+if ((${#signatures[@]} == 0)); then
+    echo "No GPG signatures present; checksum verification completed"
+    exit 0
+fi
+
+for signature in "${signatures[@]}"; do
+    asset=${signature%.asc}
+
+    if [[ ! -f $asset ]]; then
+        printf 'Signed asset is missing: %s\n' "$asset" >&2
+        exit 1
+    fi
+
+    gpg --batch --verify "$signature" "$asset"
+done
+
+echo "Release assets verified successfully"

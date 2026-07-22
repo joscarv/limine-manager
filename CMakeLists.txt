@@ -9,6 +9,7 @@ option(LIMINE_MANAGER_ENABLE_ASAN "Enable AddressSanitizer" OFF)
 option(LIMINE_MANAGER_ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
 option(LIMINE_MANAGER_ENABLE_COVERAGE "Enable GCC/Clang coverage instrumentation" OFF)
 option(LIMINE_MANAGER_ENABLE_CLANG_TIDY "Run clang-tidy during compilation" OFF)
+set(LIMINE_MANAGER_CLANG_TIDY "clang-tidy" CACHE STRING "clang-tidy executable")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -47,7 +48,7 @@ function(limine_manager_add_test TARGET_NAME SOURCE_FILE)
 endfunction()
 
 if(LIMINE_MANAGER_ENABLE_CLANG_TIDY)
-    find_program(CLANG_TIDY_EXECUTABLE NAMES clang-tidy REQUIRED)
+    find_program(CLANG_TIDY_EXECUTABLE NAMES "${LIMINE_MANAGER_CLANG_TIDY}" REQUIRED)
     set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_EXECUTABLE};--config-file=${CMAKE_SOURCE_DIR}/.clang-tidy")
 endif()
 

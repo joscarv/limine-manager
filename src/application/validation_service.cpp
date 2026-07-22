@@ -43,7 +43,7 @@ bool same_uuid(std::string_view left, std::string_view right) {
 enum class DeviceReferenceKind { uuid, partuuid, path, unknown };
 
 struct DeviceReference {
-    DeviceReferenceKind kind{DeviceReferenceKind::unknown};
+    DeviceReferenceKind kind {DeviceReferenceKind::unknown};
     std::string value;
 };
 
@@ -53,13 +53,12 @@ struct EncryptionMapping {
 };
 
 DeviceReference parse_device_reference(std::string_view value) {
-    constexpr std::string_view uuid_prefix{"UUID="};
-    constexpr std::string_view partuuid_prefix{"PARTUUID="};
+    constexpr std::string_view uuid_prefix {"UUID="};
+    constexpr std::string_view partuuid_prefix {"PARTUUID="};
     if (value.starts_with(uuid_prefix))
         return {DeviceReferenceKind::uuid, std::string(value.substr(uuid_prefix.size()))};
     if (value.starts_with(partuuid_prefix))
-        return {DeviceReferenceKind::partuuid,
-                std::string(value.substr(partuuid_prefix.size()))};
+        return {DeviceReferenceKind::partuuid, std::string(value.substr(partuuid_prefix.size()))};
     if (value.starts_with("/dev/"))
         return {DeviceReferenceKind::path, std::string(value)};
     return {DeviceReferenceKind::unknown, std::string(value)};
@@ -76,7 +75,7 @@ std::optional<EncryptionMapping> parse_cryptdevice(std::string_view value) {
     auto mapper = std::string(value.substr(separator + 1, mapper_end - separator - 1));
     if (mapper.empty())
         return std::nullopt;
-    return EncryptionMapping{std::move(source), std::move(mapper)};
+    return EncryptionMapping {std::move(source), std::move(mapper)};
 }
 
 std::optional<EncryptionMapping> parse_rd_luks_name(std::string_view value) {
@@ -84,10 +83,10 @@ std::optional<EncryptionMapping> parse_rd_luks_name(std::string_view value) {
     const auto uuid = separator == std::string_view::npos ? value : value.substr(0, separator);
     if (!valid_uuid(uuid))
         return std::nullopt;
-    return EncryptionMapping{{DeviceReferenceKind::uuid, std::string(uuid)},
-                             separator == std::string_view::npos
-                                 ? std::string{}
-                                 : std::string(value.substr(separator + 1))};
+    return EncryptionMapping {{DeviceReferenceKind::uuid, std::string(uuid)},
+                              separator == std::string_view::npos
+                                  ? std::string {}
+                                  : std::string(value.substr(separator + 1))};
 }
 
 bool same_device_path(const infrastructure::FileSystem &filesystem, std::string_view left,
@@ -133,36 +132,41 @@ ValidationService::validate(const infrastructure::SystemInfo &system,
     if (system.secure_boot.enabled) {
         report.info("secure_boot.enabled", "UEFI Secure Boot is enabled");
         if (!config.secure_boot_protect_config)
-            report.error("secure_boot.protection_disabled",
-                         "Secure Boot is enabled but protected Limine configuration generation is disabled");
+            report.error(
+                "secure_boot.protection_disabled",
+                "Secure Boot is enabled but protected Limine configuration generation is disabled");
         if (!system.secure_boot.sbctl_available)
             report.error("secure_boot.sbctl", "sbctl is required when Secure Boot is enabled");
         if (!system.secure_boot.limine_available)
             report.error("secure_boot.limine", "limine enroll-config is unavailable");
         if (!system.secure_boot.sbattach_available)
-            report.error("secure_boot.sbattach",
-                         "sbattach from sbsigntools is required to safely re-sign the Limine EFI executable");
+            report.error("secure_boot.sbattach", "sbattach from sbsigntools is required to safely "
+                                                 "re-sign the Limine EFI executable");
         if (system.secure_boot.efi_executable.empty())
             report.error("secure_boot.efi", "Unable to locate the active Limine EFI executable");
         else if (system.secure_boot.efi_signature ==
                  infrastructure::SignatureVerificationState::unsigned_file)
-            report.error("secure_boot.signature", "Limine EFI executable is not verified by sbctl: " +
-                                                   system.secure_boot.efi_executable.string());
+            report.error("secure_boot.signature",
+                         "Limine EFI executable is not verified by sbctl: " +
+                             system.secure_boot.efi_executable.string());
         else if (system.secure_boot.efi_signature ==
                  infrastructure::SignatureVerificationState::unavailable)
-            report.warning("secure_boot.signature_unavailable",
-                           "Unable to verify the Limine EFI signature without sufficient privileges; "
-                           "run limine-manager with sudo before applying changes");
+            report.warning(
+                "secure_boot.signature_unavailable",
+                "Unable to verify the Limine EFI signature without sufficient privileges; "
+                "run limine-manager with sudo before applying changes");
         for (const auto &kernel : system.kernels) {
             if (!kernel.unified_kernel_image) {
                 const auto it = system.secure_boot.resource_hashes.find(kernel.image);
                 if (it == system.secure_boot.resource_hashes.end() || it->second.empty())
-                    report.error("secure_boot.hash", "Unable to calculate BLAKE2b for " + kernel.image.string());
+                    report.error("secure_boot.hash",
+                                 "Unable to calculate BLAKE2b for " + kernel.image.string());
             }
             for (const auto &initrd : kernel.initrds) {
                 const auto it = system.secure_boot.resource_hashes.find(initrd);
                 if (it == system.secure_boot.resource_hashes.end() || it->second.empty())
-                    report.error("secure_boot.hash", "Unable to calculate BLAKE2b for " + initrd.string());
+                    report.error("secure_boot.hash",
+                                 "Unable to calculate BLAKE2b for " + initrd.string());
             }
         }
     } else {
@@ -190,9 +194,9 @@ ValidationService::validate(const infrastructure::SystemInfo &system,
     validate_file(filesystem_, report, system.limine_config, "limine.config",
                   "Limine configuration");
     if (system.kernel_cmdline_generated)
-        report.info("kernel.cmdline_file",
-                    "Kernel command line generated automatically because " +
-                        system.kernel_cmdline_file.string() + " is missing or empty");
+        report.info("kernel.cmdline_file", "Kernel command line generated automatically because " +
+                                               system.kernel_cmdline_file.string() +
+                                               " is missing or empty");
     else
         validate_file(filesystem_, report, system.kernel_cmdline_file, "kernel.cmdline_file",
                       "Kernel command line file");
@@ -237,8 +241,7 @@ ValidationService::validate(const infrastructure::SystemInfo &system,
                 }
                 const bool has_initramfs = std::any_of(
                     kernel.initrds.begin(), kernel.initrds.end(), [&](const auto &path) {
-                        return path.filename() ==
-                               ("initramfs-" + kernel.package_base + ".img");
+                        return path.filename() == ("initramfs-" + kernel.package_base + ".img");
                     });
                 if (!has_initramfs)
                     report.error(prefix + ".initramfs",
@@ -255,7 +258,7 @@ ValidationService::validate(const infrastructure::SystemInfo &system,
 
     const auto mounted_root_source = normalize_mount_source(system.root_source);
     const auto root = system.kernel_cmdline.value("root");
-    const auto uuid_root = system.root_uuid.empty() ? std::string{} : "UUID=" + system.root_uuid;
+    const auto uuid_root = system.root_uuid.empty() ? std::string {} : "UUID=" + system.root_uuid;
     if (!root)
         report.error("kernel.root", "Kernel command line has no root= option");
     else if (*root != mounted_root_source && (uuid_root.empty() || *root != uuid_root))
@@ -270,21 +273,19 @@ ValidationService::validate(const infrastructure::SystemInfo &system,
                                  : system.root_mapper_name;
     const auto cryptdevices = system.kernel_cmdline.values("cryptdevice");
     const auto rd_luks_names = system.kernel_cmdline.values("rd.luks.name");
-    const bool mapped_by_cryptdevice = std::any_of(
-        cryptdevices.begin(), cryptdevices.end(), [&](const auto &value) {
+    const bool mapped_by_cryptdevice =
+        std::any_of(cryptdevices.begin(), cryptdevices.end(), [&](const auto &value) {
             const auto mapping = parse_cryptdevice(value);
-            return mapping && mapping_identifies_root(
-                       *mapping, mapper_name, system.luks_uuid,
-                       system.encrypted_backing_partuuid, system.encrypted_backing_device,
-                       filesystem_);
+            return mapping && mapping_identifies_root(*mapping, mapper_name, system.luks_uuid,
+                                                      system.encrypted_backing_partuuid,
+                                                      system.encrypted_backing_device, filesystem_);
         });
-    const bool mapped_by_sd_encrypt = std::any_of(
-        rd_luks_names.begin(), rd_luks_names.end(), [&](const auto &value) {
+    const bool mapped_by_sd_encrypt =
+        std::any_of(rd_luks_names.begin(), rd_luks_names.end(), [&](const auto &value) {
             const auto mapping = parse_rd_luks_name(value);
-            return mapping && mapping_identifies_root(
-                       *mapping, mapper_name, system.luks_uuid,
-                       system.encrypted_backing_partuuid, system.encrypted_backing_device,
-                       filesystem_);
+            return mapping && mapping_identifies_root(*mapping, mapper_name, system.luks_uuid,
+                                                      system.encrypted_backing_partuuid,
+                                                      system.encrypted_backing_device, filesystem_);
         });
 
     if (!system.root_encrypted) {

@@ -13,17 +13,17 @@ namespace limine_manager::application {
 
 struct StatusReport {
     std::string text;
-    bool healthy{false};
-    bool degraded{false};
-    bool changes_pending{false};
+    bool healthy {false};
+    bool degraded {false};
+    bool changes_pending {false};
 };
 
 class StatusService {
   public:
-    [[nodiscard]] StatusReport
-    build(const model::SystemModel &model, const domain::ValidationReport &validation,
-          const ChangePlan &plan, const std::vector<BackupInfo> &backups,
-          const config::AppConfig &config) const;
+    [[nodiscard]] StatusReport build(const model::SystemModel &model,
+                                     const domain::ValidationReport &validation,
+                                     const ChangePlan &plan, const std::vector<BackupInfo> &backups,
+                                     const config::AppConfig &config) const;
 };
 
 } // namespace limine_manager::application
