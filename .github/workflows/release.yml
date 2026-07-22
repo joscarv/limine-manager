@@ -61,6 +61,33 @@ jobs:
           echo "archive=limine-manager-$project_version.tar.gz" >> "$GITHUB_OUTPUT"
           echo "sbom=limine-manager-$project_version.spdx.json" >> "$GITHUB_OUTPUT"
 
+      - name: Validate release signing configuration
+        id: signing
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          has_private_key=false
+          has_passphrase=false
+          [[ -n $RELEASE_GPG_PRIVATE_KEY ]] && has_private_key=true
+          [[ -n $RELEASE_GPG_PASSPHRASE ]] && has_passphrase=true
+
+          if [[ $has_private_key != $has_passphrase ]]; then
+              echo "Both RELEASE_GPG_PRIVATE_KEY and RELEASE_GPG_PASSPHRASE must be configured together" >&2
+              exit 1
+          fi
+
+          if [[ $GITHUB_EVENT_NAME == push && $has_private_key == false ]]; then
+              echo "Tagged releases require GPG signing secrets" >&2
+              exit 1
+          fi
+
+          echo "enabled=$has_private_key" >> "$GITHUB_OUTPUT"
+
+          if [[ $has_private_key == false ]]; then
+              echo "Manual validation will continue without GPG signatures"
+          fi
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -106,20 +133,45 @@ jobs:
         working-directory: dist
         run: sha256sum "${{ steps.version.outputs.archive }}" "${{ steps.version.outputs.sbom }}" > SHA256SUMS
 
-      - name: Sign release assets with GPG
-        if: env.RELEASE_GPG_PRIVATE_KEY != ''
-        working-directory: dist
+      - name: Import release signing key
+        if: steps.signing.outputs.enabled == 'true'
+        id: gpg
         shell: bash
         run: |
           set -euo pipefail
 
+          export GNUPGHOME="$RUNNER_TEMP/release-gnupg"
+          mkdir -m 700 "$GNUPGHOME"
+
           printf '%s' "$RELEASE_GPG_PRIVATE_KEY" | gpg --batch --import
+
+          fingerprint=$(gpg --batch --with-colons --list-secret-keys \
+            | awk -F: '$1 == "fpr" { print $10; exit }')
+
+          if [[ -z $fingerprint ]]; then
+              echo "Unable to determine the imported release-signing key fingerprint" >&2
+              exit 1
+          fi
+
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          echo "Imported release-signing key: $fingerprint"
+
+      - name: Sign release assets with GPG
+        if: steps.signing.outputs.enabled == 'true'
+        working-directory: dist
+        shell: bash
+        env:
+          RELEASE_GPG_FINGERPRINT: ${{ steps.gpg.outputs.fingerprint }}
+        run: |
+          set -euo pipefail
 
           for asset in \
               "${{ steps.version.outputs.archive }}" \
               "${{ steps.version.outputs.sbom }}" \
               SHA256SUMS; do
               gpg --batch --yes --pinentry-mode loopback \
+                  --local-user "$RELEASE_GPG_FINGERPRINT" \
                   --passphrase "$RELEASE_GPG_PASSPHRASE" \
                   --armor --detach-sign "$asset"
           done
